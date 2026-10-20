@@ -40,3 +40,28 @@ messages:
   config-reloaded: "&aConfiguration reloaded successfully!"
   bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
   bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
+
+block-hiding:
+  enabled: true
+  reveal-distance: 16.0     # chests etc. closer than this look normal
+  scan-radius-chunks: 8     # how far around each player to process
+  check-interval: 10        # ticks between passes
+  resend-every-passes: 10   # re-send fake blocks every N passes (0 = never)
+  fake-block: AIR           # what far-away containers turn into
+  hide-shulkers: true       # hides every colour of shulker box
+  blocks:
+    - CHEST
+    - TRAPPED_CHEST
+    - BARREL
+    - ENDER_CHEST
+    - SPAWNER
+    - TRIAL_SPAWNER
+    - VAULT
+    - HOPPER
+    - FURNACE
+    - BLAST_FURNACE
+    - SMOKER
+    - DISPENSER
+    - DROPPER
+    - BREWING_STAND
+    - BEACON
