@@ -2,7 +2,7 @@ name: meteor-guard
 version: 1.2
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
-softdepend: [GrimAC, floodgate]
+softdepend: [GrimAC, floodgate, Luckperms]
 description: meteor-guard anti-ESP, container hiding, join protection, item checks and staff alerts
 commands:
   antifreecam:
