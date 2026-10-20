@@ -1,17 +1,22 @@
 name: MeteorAntiESP
-version: 2.0.0
+version: 3.0.0
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
-description: Hides players behind walls (anti-ESP / anti-freecam for entities)
+softdepend: [GrimAC, floodgate]
+description: Anti-ESP, container hiding, join protection, item checks and staff alerts
 commands:
   antifreecam:
-    description: AntiESP admin command
-    usage: /<command> <reload|toggle|status|bypass [player]>
-    aliases: [antiesp]
+    description: Shield admin command
+    usage: /<command> <reload|toggle|status|bypass|alerts|attack|scan>
+    aliases: [antiesp, shield]
 permissions:
   antifreecam.admin:
     default: op
   antifreecam.bypass:
     default: false
   antiesp.bypass:
+    default: false
+  meteorshield.alerts:
+    default: op
+  meteorshield.bypass:
     default: false
