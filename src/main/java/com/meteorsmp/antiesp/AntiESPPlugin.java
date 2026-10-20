@@ -133,8 +133,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor {
                 PacketType.Play.Server.ENTITY_METADATA, 
                 PacketType.Play.Server.REL_ENTITY_MOVE,
                 PacketType.Play.Server.REL_ENTITY_MOVE_LOOK,
-                PacketType.Play.Server.ENTITY_LOOK,
-                PacketType.Play.Server.NAMED_ENTITY_SPAWN) {
+                PacketType.Play.Server.ENTITY_LOOK) {
             @Override
             public void onPacketSending(PacketEvent event) {
                 Player observer = event.getPlayer();
