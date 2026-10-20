@@ -1,57 +1,27 @@
-# ==========================================
-# MeteorSMP AntiESP & AntiFreecam Configuration
-# ==========================================
+# MeteorSMP AntiESP configuration
+debug: false                # true = log every hide/show to console
 
-# Debug mode - Outputs detailed information to the console if enabled
-debug: false
+enabled-worlds: []          # empty = all worlds, or e.g. [world, world_nether]
+check-interval: 2           # ticks between full passes
+max-pairs-per-tick: 300     # lag limiter - lower it if you see TPS drops
+max-distance: 128.0         # farther than this = never hidden (keep >= your player tracking range)
+min-distance: 6.0           # closer than this = always visible (stops pop-in)
+thorough-check: false       # true = more rays (corners), fewer pop-ins, more CPU
+ignore-spectators: true
 
-# AntiFreecam: Hide all blocks below this Y-level from surface players
-hideBelowY: 55
-
-# AntiFreecam: Y-level threshold where a player counts as "underground"
-revealBelowYWhenUnder: 50
-
-# AntiFreecam: Lazy unmask distance chunks ahead when underground
-lazyUnmaskDistance: 64
-
-# AntiFreecam: Whether to hide mobs and entities below Y-threshold from surface players
-maskEntities: true
-
-# AntiFreecam: Client-brand check / mod detection (e.g. Wurst freecam check)
-modDetection: true
-
-# Anti-ESP: Check interval in ticks (20 ticks = 1 second)
-# Recommended: 1-5. Lower = more frequent checks, higher performance cost.
-check-interval: 2
-
-# Maximum detection distance - Players beyond this distance will not be checked (blocks)
-max-distance: 64.0
-
-# Minimum detection distance - Close-range exemption (blocks)
-min-distance: 5.0
-
-# Team exemption settings
+# Players on the same scoreboard team never hide from each other
 team-exemption:
   enabled: true
-  detection-method: "scoreboard" # Options: "scoreboard", "permission", "both"
 
-# Performance optimization
-performance:
-  async-processing: true
-  batch-size: 10
-  cache-time: 1000
-
-# Transparent blocks list (ignored during raycasting/occlusion checks)
-transparent-blocks:
-  custom:
+occlusion:
+  always-occlude: []        # extra materials that block sight, e.g. [GLASS]
+  never-occlude:            # materials that never block sight
     - GLASS
     - GLASS_PANE
     - IRON_BARS
     - CHAIN
     - LADDER
     - VINE
-    - WATER
-    - LAVA
     - TORCH
     - WALL_TORCH
     - REDSTONE_TORCH
@@ -64,25 +34,9 @@ transparent-blocks:
     - STRUCTURE_VOID
     - LIGHT
 
-# Messages
 messages:
-  plugin-enabled: "&aMeteorAntiESP & AntiFreecam plugin has been enabled!"
-  plugin-disabled: "&cMeteorAntiESP plugin has been disabled!"
-  config-reloaded: "&aConfiguration reloaded successfully!"
+  plugin-enabled: "&aMeteorAntiESP has been enabled!"
   no-permission: "&cYou do not have permission to use this command!"
+  config-reloaded: "&aConfiguration reloaded successfully!"
   bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
   bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
-
-# Advanced settings
-advanced:
-  raycast-precision: 0.05
-  max-raycast-distance: 128.0
-  check-entity-collision: false
-  check-liquid-blocks: true
-  check-semi-transparent: true
-  strict-mode:
-    enabled: true
-    use-eye-height: true
-    blocking-threshold: 0.7
-    multi-angle-check: true
-    multi-angle-radius: 0.3
