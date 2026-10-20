@@ -33,45 +33,6 @@ A lightweight, high-performance **Paper 1.21.11** anti-cheat plugin designed to 
 
 ---
 
-## ⚙️ Configuration (`config.yml`)
-
-
-# ==========================================
-# MeteorSMP AntiESP & AntiFreecam Config
-# ==========================================
-
-debug: false
-
-# AntiFreecam settings
-hideBelowY: 55
-revealBelowYWhenUnder: 50
-lazyUnmaskDistance: 64
-maskEntities: true
-modDetection: true
-
-# Anti-ESP settings
-check-interval: 2
-max-distance: 64.0
-min-distance: 5.0
-
-# Team exemption
-team-exemption:
-  enabled: true
-  detection-method: "scoreboard"
-
-# Transparent block list (ignored during line-of-sight checks)
-transparent-blocks:
-  custom:
-    - GLASS
-    - GLASS_PANE
-    - IRON_BARS
-    - CHAIN
-    - LADDER
-    - VINE
-    - WATER
-    - LAVA
-    - TORCH
-
 # Messages
 messages:
   plugin-enabled: "&aMeteorAntiESP & AntiFreecam plugin has been enabled!"
@@ -80,3 +41,4 @@ messages:
   no-permission: "&cYou do not have permission to use this command!"
   bypass-enabled: "&aBypass has been &2ENABLED&a."
   bypass-disabled: "&cBypass has been &4DISABLED&c."
+
