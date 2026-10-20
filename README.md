@@ -1,4 +1,4 @@
-# MeteorAntiESP
+# Meteor-Guard
 
 A lightweight Paper/Purpur anti-cheat plugin for Minecraft 1.21.11 designed to block common ESP, wallhack, freecam, and underground X-ray style behavior while preserving normal server performance.
 
@@ -29,10 +29,10 @@ This project is built in Java and focuses on low-overhead checks, staff controls
 
 1. Download the plugin jar from the Releases section or build it locally.
 2. Place both required dependencies in your server's `plugins/` folder.
-3. Drop `Meteor-guard.jar` into the same `plugins/` directory.
+3. Drop `Meteor-Guard.jar` into the same `plugins/` directory.
 4. Start or restart the server.
 5. The plugin will generate its default `config.yml` on startup.
-6. Adjust settings in `plugins/Meteor-guard/config.yml` as needed.
+6. Adjust settings in `plugins/Meteor-Guard/config.yml` as needed.
 7. Reload with `/antifreecam reload`.
 
 ## Commands
@@ -69,7 +69,7 @@ Example:
 
 ## Main Plugin Details
 
-- Plugin name: `MeteorAntiESP`
+- Plugin name: `Meteor-Guard`
 - Main class: `com.meteorsmp.antiesp.AntiESPPlugin`
 - API version: `1.21`
 - Version in `plugin.yml`: `3.0.0`
@@ -91,8 +91,8 @@ See `src/main/resources/config.yml` for the full default configuration.
 
 ## Notes
 
-This project is tuned for servers that want strong anti-cheat protection without sacrificing performance or causing excessive false positives. It is intended for Paper/Purpur environments and is designed to work with modern Paper 1.21 APIs.
+This project is tuned for servers that want strong anti-cheat protection without sacrificing performance or causing excessive false positives. It is intended for Paper/Purpur environments and is designed for low-end to mid-scale gameplay stability with real-time monitoring.
 
 ## License
 
-This project is distributed under the repository's existing license terms. If no license file is present, check with the repository owner before redistributing or using the code in a public or commercial setting.
+This project is distributed under the repository's existing license terms. If no license file is present, check with the repository owner before redistributing or using the code in a public or commercial environment.
