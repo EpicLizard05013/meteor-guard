@@ -1,21 +1,20 @@
-# MeteorSMP AntiESP configuration
-debug: false                # true = log every hide/show to console
+debug: false
 
-enabled-worlds: []          # empty = all worlds, or e.g. [world, world_nether]
-check-interval: 2           # ticks between full passes
-max-pairs-per-tick: 300     # lag limiter - lower it if you see TPS drops
-max-distance: 128.0         # farther than this = never hidden (keep >= your player tracking range)
-min-distance: 6.0           # closer than this = always visible (stops pop-in)
-thorough-check: false       # true = more rays (corners), fewer pop-ins, more CPU
+# ---------------- Player hiding (line of sight) ----------------
+enabled-worlds: []
+check-interval: 2
+max-pairs-per-tick: 300
+max-distance: 128.0
+min-distance: 6.0
+thorough-check: false
 ignore-spectators: true
 
-# Players on the same scoreboard team never hide from each other
 team-exemption:
   enabled: true
 
 occlusion:
-  always-occlude: []        # extra materials that block sight, e.g. [GLASS]
-  never-occlude:            # materials that never block sight
+  always-occlude: []
+  never-occlude:
     - GLASS
     - GLASS_PANE
     - IRON_BARS
@@ -34,21 +33,15 @@ occlusion:
     - STRUCTURE_VOID
     - LIGHT
 
-messages:
-  plugin-enabled: "&aMeteorAntiESP has been enabled!"
-  no-permission: "&cYou do not have permission to use this command!"
-  config-reloaded: "&aConfiguration reloaded successfully!"
-  bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
-  bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
-
+# ---------------- Chest / spawner / container hiding ----------------
 block-hiding:
   enabled: true
-  reveal-distance: 16.0     # chests etc. closer than this look normal
-  scan-radius-chunks: 8     # how far around each player to process
-  check-interval: 10        # ticks between passes
-  resend-every-passes: 10   # re-send fake blocks every N passes (0 = never)
-  fake-block: AIR           # what far-away containers turn into
-  hide-shulkers: true       # hides every colour of shulker box
+  reveal-distance: 16.0
+  scan-radius-chunks: 8
+  check-interval: 10
+  resend-every-passes: 10
+  fake-block: AIR
+  hide-shulkers: true
   blocks:
     - CHEST
     - TRAPPED_CHEST
@@ -65,3 +58,110 @@ block-hiding:
     - DROPPER
     - BREWING_STAND
     - BEACON
+
+# ---------------- Staff alerts ----------------
+alerts:
+  enabled: true
+  format: "&8[&bShield&8] &f{player} &7- &c{check} &8(&7{details}&8)"
+  cooldown-seconds: 10        # same player + same check is shown/logged at most once per this time
+  log-to-file: true           # plugins/MeteorAntiESP/logs/alerts-YYYY-MM-DD.log
+  console: true
+
+# ---------------- Bot & join protection ----------------
+join-protection:
+  enabled: true
+  bedrock-prefix: "."         # Floodgate prefix: these accounts skip all join checks (Geyser players share one IP)
+  ignore-ips:                 # never IP-limited (proxy / Geyser loopback)
+    - "127.0.0.1"
+    - "0:0:0:0:0:0:0:1"
+  ip-limits:
+    enabled: true
+    max-joins: 4              # login attempts from one IP...
+    window-seconds: 30        # ...within this time
+    max-accounts-per-ip: 3    # accounts online at once from one IP
+    message: "&cToo many connections from your IP. Please wait a moment and try again."
+  name-filter:
+    enabled: true
+    blocked-regex:
+      - "(?i)^(bot|mcbot|botattack|nuke|crash)[_-]?\\d*$"
+    message: "&cThat username is not allowed."
+  attack-mode:
+    enabled: true
+    joins-threshold: 12       # this many login attempts...
+    window-seconds: 10        # ...within this time starts attack mode
+    duration-seconds: 120     # stays on this long (extended while the attack continues)
+    block-new-players: false  # true = accounts that never joined before are refused during an attack
+    message: "&cThe server is under a join attack. New players can't join right now, try again in a few minutes."
+  verification:
+    mode: attack              # off | attack (untrusted players during an attack) | always (every untrusted player)
+    timeout-seconds: 20
+    trusted-playtime-minutes: 30
+    title: "&8Click the &aLIME &8pane to verify"
+
+# ---------------- Rate limits ----------------
+rate-limits:
+  enabled: true
+  chat:
+    max-messages: 5
+    window-seconds: 4
+    block-repeats: true
+  commands:
+    max-commands: 8
+    window-seconds: 4
+    max-length: 256
+  inventory-clicks:
+    max-clicks: 60
+    window-seconds: 1
+  interactions:               # alert only, never cancels
+    max: 40
+    window-seconds: 1
+
+# ---------------- Illegal item checks ----------------
+item-checks:
+  enabled: true
+  action: remove              # alert | remove | kick   (remove and kick also alert)
+  scan-on-join: true
+  periodic-scan-seconds: 60   # 0 = off
+  max-serialized-bytes: 20000
+  max-name-length: 120
+  max-lore-lines: 20
+  max-lore-line-length: 120
+  allow-unsafe-enchants: false   # set true if you use a custom-enchant plugin
+  banned-materials:
+    - BEDROCK
+    - BARRIER
+    - COMMAND_BLOCK
+    - CHAIN_COMMAND_BLOCK
+    - REPEATING_COMMAND_BLOCK
+    - COMMAND_BLOCK_MINECART
+    - STRUCTURE_BLOCK
+    - STRUCTURE_VOID
+    - JIGSAW
+    - DEBUG_STICK
+    - KNOWLEDGE_BOOK
+    - LIGHT
+
+# ---------------- Ore ratio alerts (alert only) ----------------
+ore-watch:
+  enabled: true
+  tracked-ores:
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - ANCIENT_DEBRIS
+  min-sample: 150             # stone-type blocks mined before the ratio is judged
+  max-ratio: 0.06             # tracked ores / (stone + tracked ores)
+  burst-count: 10             # or this many tracked ores...
+  burst-minutes: 10           # ...within this many minutes
+  alert-cooldown-minutes: 5
+
+# ---------------- GrimAC link ----------------
+grim-hook:
+  enabled: true
+  broadcast: false            # Grim already alerts its own staff; true = also show Grim flags in the Shield format
+
+messages:
+  plugin-enabled: "&aMeteorAntiESP has been enabled!"
+  no-permission: "&cYou do not have permission to use this command!"
+  config-reloaded: "&aConfiguration reloaded successfully!"
+  bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
+  bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
