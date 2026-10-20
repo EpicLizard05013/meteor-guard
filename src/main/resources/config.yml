@@ -64,7 +64,7 @@ alerts:
   enabled: true
   format: "&8[&bShield&8] &f{player} &7- &c{check} &8(&7{details}&8)"
   cooldown-seconds: 10        # same player + same check is shown/logged at most once per this time
-  log-to-file: true           # plugins/MeteorAntiESP/logs/alerts-YYYY-MM-DD.log
+  log-to-file: true           # plugins/meteor-guard/logs/alerts-YYYY-MM-DD.log
   console: true
 
 # ---------------- Bot & join protection ----------------
@@ -160,7 +160,7 @@ grim-hook:
   broadcast: false            # Grim already alerts its own staff; true = also show Grim flags in the Shield format
 
 messages:
-  plugin-enabled: "&aMeteorAntiESP has been enabled!"
+  plugin-enabled: "&ameteor-guard has been enabled!"
   no-permission: "&cYou do not have permission to use this command!"
   config-reloaded: "&aConfiguration reloaded successfully!"
   bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."

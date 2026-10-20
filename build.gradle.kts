@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.meteorsmp.antiesp"
-version = "2.0.0"
+version = "1.2"
 
 repositories {
     mavenCentral()
