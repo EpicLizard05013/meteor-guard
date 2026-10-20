@@ -1,15 +1,21 @@
-name: meteor-guard
-version: 1.2
+name: MeteorGuard
+version: '1.2'
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
 softdepend: [GrimAC, floodgate, Luckperms]
-description: meteor-guard anti-ESP, container hiding, join protection, item checks and staff alerts
+description: Advanced anti-ESP, container hiding, join protection, item checks, and staff alerts.
+
 commands:
-  antifreecam:
-    description: Shield admin command
-    usage: /<command> <reload|toggle|status|bypass|alerts|attack|scan>
-    aliases: [antiesp, shield]
+  meteorguard:
+    description: Main administrative command for MeteorGuard
+    permission: meteorguard.admin
+    usage: /<command> [reload]
+    aliases: [antiesp, shield, antifreecam]
+
 permissions:
+  meteorguard.admin:
+    description: Allows full administrative access to MeteorGuard commands
+    default: op
   antifreecam.admin:
     default: op
   antifreecam.bypass:
