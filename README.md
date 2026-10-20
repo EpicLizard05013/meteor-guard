@@ -29,10 +29,10 @@ This project is built in Java and focuses on low-overhead checks, staff controls
 
 1. Download the plugin jar from the Releases section or build it locally.
 2. Place both required dependencies in your server's `plugins/` folder.
-3. Drop `MeteorAntiESP.jar` into the same `plugins/` directory.
+3. Drop `Meteor-guard.jar` into the same `plugins/` directory.
 4. Start or restart the server.
 5. The plugin will generate its default `config.yml` on startup.
-6. Adjust settings in `plugins/MeteorAntiESP/config.yml` as needed.
+6. Adjust settings in `plugins/Meteor-guard/config.yml` as needed.
 7. Reload with `/antifreecam reload`.
 
 ## Commands
