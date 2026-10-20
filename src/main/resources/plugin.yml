@@ -1,10 +1,17 @@
 name: MeteorAntiESP
-version: 1.1
+version: 2.0.0
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
-depend: [ProtocolLib, packetevents]
+description: Hides players behind walls (anti-ESP / anti-freecam for entities)
 commands:
   antifreecam:
-    description: AntiFreecam and AntiESP management commands
-    permission: antifreecam.admin
-    permission-message: "&cYou do not have permission to use this command."
+    description: AntiESP admin command
+    usage: /<command> <reload|toggle|status|bypass [player]>
+    aliases: [antiesp]
+permissions:
+  antifreecam.admin:
+    default: op
+  antifreecam.bypass:
+    default: false
+  antiesp.bypass:
+    default: false
