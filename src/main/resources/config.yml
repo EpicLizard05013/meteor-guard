@@ -1,0 +1,6 @@
+# MeteorSMP AntiESP & AntiFreecam Configuration
+hideBelowY: 55
+revealBelowYWhenUnder: 50
+lazyUnmaskDistance: 64
+maskEntities: true
+modDetection: true
