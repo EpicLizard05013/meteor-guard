@@ -22,8 +22,8 @@ This project is built in Java and focuses on low-overhead checks, staff controls
 - Server software: Paper or Purpur 1.21.11
 - Java: 21
 - Dependencies:
-  - [ProtocolLib](https://github.com/dmulloy2/ProtocolLib)
-  - [PacketEvents](https://github.com/retrooper/packetevents)
+  - [GrimAC](https://github.com/retrooper/grimac)
+  - [Luckperms](https://github.com/retrooper/luckperms)
 
 ## Installation
 
@@ -61,11 +61,11 @@ Example:
 
 ## Permissions
 
-- `antifreecam.admin`
-- `antifreecam.bypass`
-- `antiesp.bypass`
-- `meteorshield.alerts`
-- `meteorshield.bypass`
+- `antifreecam.admin - this grants you all the /antifreecam commands`
+- `antifreecam.bypass - this bypasses antifreecam`
+- `antiesp.bypass - this bypasses antiesp`
+- `meteorshield.alerts - this shows alerts`
+- `meteorshield.bypass - this bypasses all the protections`
 
 ## Main Plugin Details
 
