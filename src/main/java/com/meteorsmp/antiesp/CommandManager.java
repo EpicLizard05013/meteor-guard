@@ -1,6 +1,5 @@
 package com.meteorsmp.antiesp;
 
-import org.chat2color // (or standard ChatColor)
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -21,28 +20,46 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!sender.hasPermission("meteorguard.admin")) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
+            sendHelp(sender);
+            return true;
+        }
+
+        String sub = args[0].toLowerCase();
+        boolean admin = sender.hasPermission("meteorguard.admin") || sender.hasPermission("antifreecam.admin");
+        boolean alertToggle = sub.equals("alerts") && sender.hasPermission("meteorshield.alerts");
+
+        if (!admin && !alertToggle) {
             sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
             return true;
         }
 
-        if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
-            plugin.getConfigManager().reloadConfig();
-            sender.sendMessage(ChatColor.GREEN + "[MeteorGuard] Configuration reloaded successfully!");
-            return true;
+        if (sub.equals("reload") || sub.equals("toggle") || sub.equals("status") || sub.equals("bypass")
+                || sub.equals("attack") || sub.equals("scan") || sub.equals("alerts")) {
+            return plugin.onCommand(sender, command, label, args);
         }
 
-        sender.sendMessage(ChatColor.YELLOW + "=== MeteorGuard Administration ===");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard reload - Reloads the configuration file.");
+        sendHelp(sender);
         return true;
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
-        List<String> completions = new ArrayList<>();
-        if (args.length == 1 && sender.hasPermission("meteorguard.admin")) {
-            completions.add("reload");
+    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
+                                     @NotNull String alias, @NotNull String[] args) {
+        if (!sender.hasPermission("meteorguard.admin") && !sender.hasPermission("antifreecam.admin")) {
+            return new ArrayList<>();
         }
-        return completions;
+        return plugin.onTabComplete(sender, command, alias, args);
+    }
+
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(ChatColor.GOLD + "=== MeteorGuard Commands ===");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard reload - Reload the config");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard toggle - Enable or disable anti-ESP");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard status - Show the current status");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard bypass [player] - Toggle bypass for a player");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard alerts - Toggle your personal alert view");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard attack [on|off] - Force join-attack mode");
+        sender.sendMessage(ChatColor.GRAY + "/meteorguard scan <player> - Scan a player for illegal items");
     }
 }
