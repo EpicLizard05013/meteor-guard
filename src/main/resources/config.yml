@@ -1,6 +1,88 @@
+# ==========================================
 # MeteorSMP AntiESP & AntiFreecam Configuration
+# ==========================================
+
+# Debug mode - Outputs detailed information to the console if enabled
+debug: false
+
+# AntiFreecam: Hide all blocks below this Y-level from surface players
 hideBelowY: 55
+
+# AntiFreecam: Y-level threshold where a player counts as "underground"
 revealBelowYWhenUnder: 50
+
+# AntiFreecam: Lazy unmask distance chunks ahead when underground
 lazyUnmaskDistance: 64
+
+# AntiFreecam: Whether to hide mobs and entities below Y-threshold from surface players
 maskEntities: true
+
+# AntiFreecam: Client-brand check / mod detection (e.g. Wurst freecam check)
 modDetection: true
+
+# Anti-ESP: Check interval in ticks (20 ticks = 1 second)
+# Recommended: 1-5. Lower = more frequent checks, higher performance cost.
+check-interval: 2
+
+# Maximum detection distance - Players beyond this distance will not be checked (blocks)
+max-distance: 64.0
+
+# Minimum detection distance - Close-range exemption (blocks)
+min-distance: 5.0
+
+# Team exemption settings
+team-exemption:
+  enabled: true
+  detection-method: "scoreboard" # Options: "scoreboard", "permission", "both"
+
+# Performance optimization
+performance:
+  async-processing: true
+  batch-size: 10
+  cache-time: 1000
+
+# Transparent blocks list (ignored during raycasting/occlusion checks)
+transparent-blocks:
+  custom:
+    - GLASS
+    - GLASS_PANE
+    - IRON_BARS
+    - CHAIN
+    - LADDER
+    - VINE
+    - WATER
+    - LAVA
+    - TORCH
+    - WALL_TORCH
+    - REDSTONE_TORCH
+    - REDSTONE_WALL_TORCH
+    - TRIPWIRE
+    - TRIPWIRE_HOOK
+    - COBWEB
+    - SCAFFOLDING
+    - BARRIER
+    - STRUCTURE_VOID
+    - LIGHT
+
+# Messages
+messages:
+  plugin-enabled: "&aMeteorAntiESP & AntiFreecam plugin has been enabled!"
+  plugin-disabled: "&cMeteorAntiESP plugin has been disabled!"
+  config-reloaded: "&aConfiguration reloaded successfully!"
+  no-permission: "&cYou do not have permission to use this command!"
+  bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
+  bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
+
+# Advanced settings
+advanced:
+  raycast-precision: 0.05
+  max-raycast-distance: 128.0
+  check-entity-collision: false
+  check-liquid-blocks: true
+  check-semi-transparent: true
+  strict-mode:
+    enabled: true
+    use-eye-height: true
+    blocking-threshold: 0.7
+    multi-angle-check: true
+    multi-angle-radius: 0.3
