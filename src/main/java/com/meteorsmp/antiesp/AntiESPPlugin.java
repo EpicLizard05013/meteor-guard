@@ -19,6 +19,7 @@ import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Team;
 import org.bukkit.util.BoundingBox;
 
 import java.util.ArrayDeque;
@@ -34,8 +35,9 @@ import java.util.UUID;
 
 /**
  * Hides players from each other when there is no line of sight (walls / terrain in between),
- * measured from the observer's REAL server-side eye position. That also defeats freecam
- * and ESP mods for player-tracking. Everything runs on the main thread.
+ * measured from the observer's REAL server-side eye position, and (through BlockHider) hides
+ * far-away chests / spawners / containers. Everything runs on the main thread.
+ * Needs Paper 1.19.3 or newer.
  */
 public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
 
@@ -44,9 +46,12 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private final Map<UUID, Set<UUID>> hidden = new HashMap<>();
     private final ArrayDeque<UUID> queue = new ArrayDeque<>();
     private BukkitTask task;
+    private BlockHider blockHider;
     private int tickCounter = 0;
     private boolean enabled = true;
 
+    private boolean debug;
+    private boolean teamExempt;
     private int checkInterval;
     private int maxPairsPerTick;
     private double maxDist;
@@ -64,6 +69,9 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
         getServer().getPluginManager().registerEvents(this, this);
 
+        blockHider = new BlockHider(this);
+        blockHider.start();
+
         PluginCommand cmd = getCommand("antifreecam");
         if (cmd != null) {
             cmd.setExecutor(this);
@@ -78,6 +86,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     @Override
     public void onDisable() {
+        if (blockHider != null) blockHider.stop();
         if (task != null) task.cancel();
         for (Player p : Bukkit.getOnlinePlayers()) revealAll(p);
         hidden.clear();
@@ -87,6 +96,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     private void loadSettings() {
         reloadConfig();
+        debug = getConfig().getBoolean("debug", false);
+        teamExempt = getConfig().getBoolean("team-exemption.enabled", true);
         checkInterval = Math.max(1, getConfig().getInt("check-interval", 2));
         maxPairsPerTick = Math.max(20, getConfig().getInt("max-pairs-per-tick", 300));
         maxDist = Math.max(8.0, getConfig().getDouble("max-distance", 128.0));
@@ -96,6 +107,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         enabledWorlds = new HashSet<>(getConfig().getStringList("enabled-worlds"));
         loadMaterials("occlusion.always-occlude", alwaysOcclude);
         loadMaterials("occlusion.never-occlude", neverOcclude);
+        if (blockHider != null) blockHider.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {
@@ -113,6 +125,17 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     private String msg(String key, String def) {
         return color(getConfig().getString("messages." + key, def));
+    }
+
+    // Used by BlockHider
+    public boolean isActive() {
+        return enabled;
+    }
+
+    public boolean hasBypass(Player p) {
+        return bypass.contains(p.getUniqueId())
+                || p.hasPermission("antiesp.bypass")
+                || p.hasPermission("antifreecam.bypass");
     }
 
     // ------------------------------------------------------------------
@@ -161,24 +184,33 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             // Someone else (vanish, etc.) already hides this player: leave it alone.
             if (!weHid && !observer.canSee(target)) continue;
 
-            boolean shouldHide = shouldHide(eye, target);
+            boolean shouldHide = !sameTeam(observer, target) && shouldHide(eye, target);
 
             if (shouldHide && !weHid) {
                 observer.hideEntity(this, target);
+                observer.listPlayer(target);   // keep them in the tab list while hidden in the world
                 hidden.computeIfAbsent(oid, k -> new HashSet<>()).add(tid);
+                if (debug) getLogger().info("HIDE " + target.getName() + " from " + observer.getName());
             } else if (!shouldHide && weHid) {
                 observer.showEntity(this, target);
                 mine.remove(tid);
+                if (debug) getLogger().info("SHOW " + target.getName() + " to " + observer.getName());
             }
         }
         return cost;
     }
 
     private boolean isExempt(Player observer, World world) {
-        if (bypass.contains(observer.getUniqueId())) return true;
-        if (observer.hasPermission("antiesp.bypass") || observer.hasPermission("antifreecam.bypass")) return true;
+        if (hasBypass(observer)) return true;
         if (ignoreSpectators && observer.getGameMode() == GameMode.SPECTATOR) return true;
         return !enabledWorlds.isEmpty() && !enabledWorlds.contains(world.getName());
+    }
+
+    private boolean sameTeam(Player a, Player b) {
+        if (!teamExempt) return false;
+        Team ta = a.getScoreboard().getEntryTeam(a.getName());
+        Team tb = b.getScoreboard().getEntryTeam(b.getName());
+        return ta != null && tb != null && ta.getName().equals(tb.getName());
     }
 
     // ------------------------------------------------------------------
@@ -321,7 +353,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             case "toggle":
                 enabled = !enabled;
                 if (!enabled) {
-                    for (Player p : Bukkit.getOnlinePlayers()) revealAll(p);
+                    for (Player p : Bukkit.getOnlinePlayers()) {
+                        revealAll(p);
+                        if (blockHider != null) blockHider.revealAll(p);
+                    }
                 }
                 sender.sendMessage(color(enabled ? "&aAntiESP is now &lENABLED&a." : "&cAntiESP is now &lDISABLED&c."));
                 return true;
@@ -339,6 +374,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 } else {
                     bypass.add(id);
                     revealAll(target);
+                    if (blockHider != null) blockHider.revealAll(target);
                     target.sendMessage(msg("bypass-enabled", "&aBypass enabled."));
                 }
                 return true;
