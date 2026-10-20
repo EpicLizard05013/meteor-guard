@@ -1,10 +1,10 @@
 name: MeteorAntiESP
-version: 1.0
+version: 1.1
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
-depend: [ProtocolLib]
+depend: [ProtocolLib, packetevents]
 commands:
-  antiesp:
-    description: AntiESP management command
-    permission: meteorsmp.admin
+  antifreecam:
+    description: AntiFreecam and AntiESP management commands
+    permission: antifreecam.admin
     permission-message: "&cYou do not have permission to use this command."
