@@ -25,7 +25,10 @@ sourceSets {
     main {
         resources {
             srcDirs("src/main/resources", "data")
-            duplicatesStrategy = DuplicatesStrategy.EXCLUDE // or DuplicatesStrategy.INCLUDE
         }
     }
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
