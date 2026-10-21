@@ -54,12 +54,12 @@ public class CommandManager implements CommandExecutor, TabCompleter {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "=== MeteorGuard Commands ===");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard reload - Reload the config");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard toggle - Enable or disable anti-ESP");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard status - Show the current status");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard bypass [player] - Toggle bypass for a player");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard alerts - Toggle your personal alert view");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard attack [on|off] - Force join-attack mode");
-        sender.sendMessage(ChatColor.GRAY + "/meteorguard scan <player> - Scan a player for illegal items");
+        sender.sendMessage(ChatColor.GRAY + "/meteor reload - Reload the config");
+        sender.sendMessage(ChatColor.GRAY + "/meteor toggle - Enable or disable anti-ESP");
+        sender.sendMessage(ChatColor.GRAY + "/meteor status - Show the current status");
+        sender.sendMessage(ChatColor.GRAY + "/meteor antifreecam bypass [player] - Toggle bypass for a player");
+        sender.sendMessage(ChatColor.GRAY + "/meteor alerts - Toggle your personal alert view");
+        sender.sendMessage(ChatColor.GRAY + "/meteor attack [on|off] - Force join-attack mode");
+        sender.sendMessage(ChatColor.GRAY + "/meteor scan <player> - Scan a player for illegal items");
     }
 }

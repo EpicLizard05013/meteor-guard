@@ -18,7 +18,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** One place for every staff alert: chat to staff, console, daily log file. */
 public final class AlertManager {
 
     public static Component c(String s) {
@@ -87,18 +86,3 @@ public final class AlertManager {
             }
             if (console) plugin.getLogger().info("[ALERT] " + plain);
         };
-        if (Bukkit.isPrimaryThread()) r.run();
-        else Bukkit.getScheduler().runTask(plugin, r);
-    }
-
-    private synchronized void writeLog(String line) {
-        try {
-            Path dir = plugin.getDataFolder().toPath().resolve("logs");
-            Files.createDirectories(dir);
-            Path file = dir.resolve("alerts-" + LocalDate.now() + ".log");
-            Files.writeString(file, line + System.lineSeparator(), StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-        } catch (IOException ignored) {
-        }
-    }
-}

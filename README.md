@@ -33,13 +33,13 @@ This project is built in Java and focuses on low-overhead checks, staff controls
 4. Start or restart the server.
 5. The plugin will generate its default `config.yml` on startup.
 6. Adjust settings in `plugins/Meteor-Guard/config.yml` as needed.
-7. Reload with `/antifreecam reload`.
+7. Reload with `/meteor antifreecam reload`.
 
 ## Commands
 
 The plugin registers the following command:
 
-- `/antifreecam` or `/antiesp` or `/shield`
+- `/meteor` or `/antifreecam` or `/antiesp` or `/shield`
 
 Subcommands:
 
@@ -54,9 +54,9 @@ Subcommands:
 Example:
 
 ```bash
-/antifreecam reload
-/antifreecam status
-/antifreecam bypass
+/meteor antifreecam reload
+/meteor antifreecam status
+/meteor antifreecam bypass
 ```
 
 ## Permissions
@@ -90,9 +90,3 @@ The plugin supports a wide set of configurable systems, including:
 See `src/main/resources/config.yml` for the full default configuration.
 
 ## Notes
-
-This project is tuned for servers that want strong anti-cheat protection without sacrificing performance or causing excessive false positives. It is intended for Paper/Purpur environments and is designed for low-end to mid-scale gameplay stability with real-time monitoring.
-
-## License
-
-This project is distributed under the repository's existing license terms. If no license file is present, check with the repository owner before redistributing or using the code in a public or commercial environment.
