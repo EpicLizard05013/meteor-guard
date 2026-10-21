@@ -26,13 +26,12 @@ public final class PunishmentManager {
         String commandToExecute = cfg.getString("punishments.command", "tempban %player% 1d Auto-Punished for Cheat Detection: %reason%");
 
         if (violations >= maxViolations) {
-            violationCounts.remove(uuid); // Reset na straf
+            violationCounts.remove(uuid);
 
             String parsedCommand = commandToExecute
                     .replace("%player%", player.getName())
                     .replace("%reason%", reason);
 
-            // Voer het commando uit via de server console
             Bukkit.getScheduler().runTask(plugin, () -> {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsedCommand);
             });
