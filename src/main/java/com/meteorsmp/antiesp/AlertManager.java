@@ -86,3 +86,25 @@ public final class AlertManager {
             }
             if (console) plugin.getLogger().info("[ALERT] " + plain);
         };
+        
+        if (Bukkit.isPrimaryThread()) {
+            r.run();
+        } else {
+            Bukkit.getScheduler().runTask(plugin, r);
+        }
+    }
+
+    private void writeLog(String line) {
+        try {
+            Path folder = plugin.getDataFolder().toPath().resolve("data/alerts");
+            if (!Files.exists(folder)) {
+                Files.createDirectories(folder);
+            }
+            Path file = folder.resolve(LocalDate.now() + ".log");
+            Files.writeString(file, line + System.lineSeparator(), StandardCharsets.UTF_8, 
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to write alert log: " + e.getMessage());
+        }
+    }
+}
