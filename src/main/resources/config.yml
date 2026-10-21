@@ -143,8 +143,8 @@ item-checks:
 # ---------------- Punishments ---------------
 punishments:
   auto-punish: true
-  threshold: 3 # Aantal waarschuwingen voordat de straf wordt uitgevoerd
-  command: "tempban %player% 1d [MeteorGuard] Automatische gedetecteerde overtreding: %reason%"
+  threshold: 3
+  command: "tempban %player% 1d [MeteorGuard] Detected of esp: %reason%"
 # ---------------- Ore ratio alerts (alert only) ----------------
 ore-watch:
   enabled: true
