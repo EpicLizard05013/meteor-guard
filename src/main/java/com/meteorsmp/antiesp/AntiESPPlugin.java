@@ -22,6 +22,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.util.BoundingBox;
 
+import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -69,6 +70,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveDefaultDataFiles(); // Nambahan fungsi panyimpen file data otomatis
 
         alerts = new AlertManager(this);
         joinProtection = new JoinProtection(this, alerts);
@@ -98,6 +100,27 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
         getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorAntiESP has been enabled!")));
+    }
+
+    private void saveDefaultDataFiles() {
+        String[] files = {
+            "database.yml",
+            "discord.yml",
+            "messages.yml",
+            "punishments.yml"
+        };
+
+        for (String fileName : files) {
+            File file = new File(getDataFolder(), fileName);
+            if (!file.exists()) {
+                saveResource(fileName, false);
+            }
+        }
+
+        File alertFolder = new File(getDataFolder(), "data/alerts");
+        if (!alertFolder.exists()) {
+            alertFolder.mkdirs();
+        }
     }
 
     @Override
@@ -153,7 +176,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         return color(getConfig().getString("messages." + key, def));
     }
 
-    // Used by BlockHider and by other plugins (e.g. your anti-dupe): getAlerts().alert("DUPE", name, "details")
     public AlertManager getAlerts() {
         return alerts;
     }
@@ -167,10 +189,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 || p.hasPermission("antiesp.bypass")
                 || p.hasPermission("antifreecam.bypass");
     }
-
-    // ------------------------------------------------------------------
-    // Main loop (spread over ticks so it never lags the server)
-    // ------------------------------------------------------------------
 
     private void tick() {
         if (!enabled) return;
@@ -190,7 +208,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         }
     }
 
-    /** Returns how many pairs were checked (used as the lag budget). */
     private int processObserver(Player observer) {
         UUID oid = observer.getUniqueId();
         World world = observer.getWorld();
@@ -211,14 +228,13 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             Set<UUID> mine = hidden.get(oid);
             boolean weHid = mine != null && mine.contains(tid);
 
-            // Someone else (vanish, etc.) already hides this player: leave it alone.
             if (!weHid && !observer.canSee(target)) continue;
 
             boolean shouldHide = !sameTeam(observer, target) && shouldHide(eye, target);
 
             if (shouldHide && !weHid) {
                 observer.hideEntity(this, target);
-                observer.listPlayer(target);   // keep them in the tab list while hidden in the world
+                observer.listPlayer(target);
                 hidden.computeIfAbsent(oid, k -> new HashSet<>()).add(tid);
                 if (debug) getLogger().info("HIDE " + target.getName() + " from " + observer.getName());
             } else if (!shouldHide && weHid) {
@@ -242,10 +258,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         Team tb = b.getScoreboard().getEntryTeam(b.getName());
         return ta != null && tb != null && ta.getName().equals(tb.getName());
     }
-
-    // ------------------------------------------------------------------
-    // Visibility
-    // ------------------------------------------------------------------
 
     private boolean shouldHide(Location eye, Player target) {
         if (target.getGameMode() == GameMode.SPECTATOR) return false;
@@ -281,7 +293,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         return true;
     }
 
-    /** Voxel walk (Amanatides-Woo): checks EVERY block between the two points, no skipping. */
     private boolean isLineBlocked(World world, double sx, double sy, double sz, double ex, double ey, double ez) {
         double dx = ex - sx, dy = ey - sy, dz = ez - sz;
         int x = floor(sx), y = floor(sy), z = floor(sz);
@@ -320,7 +331,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     private boolean occludes(World world, int x, int y, int z) {
         if (y < world.getMinHeight() || y >= world.getMaxHeight()) return false;
-        if (!world.isChunkLoaded(x >> 4, z >> 4)) return false;   // never force-load chunks
+        if (!world.isChunkLoaded(x >> 4, z >> 4)) return false;
         Material m = world.getBlockAt(x, y, z).getType();
         if (neverOcclude.contains(m)) return false;
         return alwaysOcclude.contains(m) || m.isOccluding();
@@ -329,10 +340,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private static int floor(double d) {
         return (int) Math.floor(d);
     }
-
-    // ------------------------------------------------------------------
-    // Cleanup
-    // ------------------------------------------------------------------
 
     private void revealAll(Player observer) {
         Set<UUID> mine = hidden.remove(observer.getUniqueId());
@@ -360,10 +367,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     public void onGameMode(PlayerGameModeChangeEvent e) {
         if (e.getNewGameMode() == GameMode.SPECTATOR) revealAll(e.getPlayer());
     }
-
-    // ------------------------------------------------------------------
-    // Commands
-    // ------------------------------------------------------------------
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
