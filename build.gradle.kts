@@ -20,3 +20,11 @@ dependencies {
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
+
+sourceSets {
+    main {
+        resources {
+            srcDirs("src/main/resources", "data")
+        }
+    }
+}
