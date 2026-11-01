@@ -17,24 +17,37 @@ public class AntiAutoclicker implements Listener {
     private final Map<UUID, List<Long>> clickTimestamps = new HashMap<>();
     private final Map<UUID, Integer> violationLevels = new HashMap<>();
 
-    // Maximum allowed CPS before flagging
-    private static final int MAX_CPS = 18;
-    // Threshold for macro detection (too consistent interval variance)
-    private static final double MACRO_VARIANCE_THRESHOLD = 0.5;
+    private boolean enabled = true;
+    private int maxCps = 18;
+    private int minSamples = 10;
+    private double macroVarianceThreshold = 0.5;
+    private int kickThreshold = 5;
 
     public AntiAutoclicker(Plugin plugin) {
         this.plugin = plugin;
+        reload();
         Bukkit.getPluginManager().registerEvents(this, plugin);
+    }
+
+    public void reload() {
+        var c = plugin.getConfig();
+        String p = "combat-checks.autoclicker.";
+        enabled = c.getBoolean(p + "enabled", true);
+        maxCps = Math.max(1, c.getInt(p + "max-cps", 18));
+        minSamples = Math.max(2, c.getInt(p + "min-sample-clicks", 10));
+        macroVarianceThreshold = Math.max(0.0, c.getDouble(p + "macro-variance-threshold", 0.5));
+        kickThreshold = Math.max(1, c.getInt(p + "kick-violation-threshold", 5));
     }
 
     @EventHandler
     public void onPlayerClick(PlayerInteractEvent event) {
+        if (!enabled) return;
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) {
             return;
         }
 
         Player player = event.getPlayer();
-        if (player.hasPermission("meteorguard.bypass")) {
+        if (player.hasPermission("meteorshield.bypass")) {
             return;
         }
 
@@ -52,13 +65,13 @@ public class AntiAutoclicker implements Listener {
         int currentCps = timestamps.size();
 
         // Check 1: Raw CPS limit exceeded
-        if (currentCps > MAX_CPS) {
+        if (currentCps > maxCps) {
             handleViolation(player, "High CPS (" + currentCps + " CPS)");
             return;
         }
 
         // Check 2: Macro Check (Inhuman click interval consistency)
-        if (timestamps.size() >= 10) {
+        if (timestamps.size() >= minSamples) {
             if (isMacroPattern(timestamps)) {
                 handleViolation(player, "Autoclicker / Macro Detected (Inhuman Consistency)");
             }
@@ -76,7 +89,7 @@ public class AntiAutoclicker implements Listener {
         double stdDev = Math.sqrt(variance);
 
         // If standard deviation of click intervals is extremely low, it's an automated macro
-        return stdDev < MACRO_VARIANCE_THRESHOLD && mean > 0;
+        return stdDev < macroVarianceThreshold && mean > 0;
     }
 
     private void handleViolation(Player player, String reason) {
@@ -88,12 +101,12 @@ public class AntiAutoclicker implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             Bukkit.getConsoleSender().sendMessage("§c[MeteorGuard] " + player.getName() + " failed combat checks: " + reason + " (VL: " + vl + ")");
             for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.hasPermission("meteorguard.notify")) {
+                if (p.hasPermission("meteorshield.alerts")) {
                     p.sendMessage("§8[§cMG§8] §e" + player.getName() + " §7failed §c" + reason);
                 }
             }
 
-            if (vl >= 5) {
+            if (vl >= kickThreshold) {
                 player.kickPlayer("§cUnfair advantage detected: " + reason);
                 violationLevels.remove(uuid);
             }

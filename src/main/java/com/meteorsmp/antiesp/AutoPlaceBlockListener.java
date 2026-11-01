@@ -18,18 +18,29 @@ public class AutoPlaceBlockListener implements Listener {
     private final Map<UUID, Long> lastPlaceTime = new HashMap<>();
     private final Map<UUID, Integer> fastPlaceViolations = new HashMap<>();
 
-    // Minimum milliseconds allowed between block placements (e.g., 50ms = max 20 blocks/sec)
-    private static final long MIN_PLACE_INTERVAL_MS = 45;
+    private boolean enabled = true;
+    private long minPlaceIntervalMs = 45L;
+    private int kickThreshold = 10;
 
     public AutoPlaceBlockListener(Plugin plugin) {
         this.plugin = plugin;
+        reload();
         Bukkit.getPluginManager().registerEvents(this, plugin);
+    }
+
+    public void reload() {
+        var c = plugin.getConfig();
+        String p = "combat-checks.autoplace.";
+        enabled = c.getBoolean(p + "enabled", true);
+        minPlaceIntervalMs = Math.max(1L, c.getLong(p + "min-place-interval-ms", 45L));
+        kickThreshold = Math.max(1, c.getInt(p + "kick-violation-threshold", 10));
     }
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
+        if (!enabled) return;
         Player player = event.getPlayer();
-        if (player.hasPermission("meteorguard.bypass")) {
+        if (player.hasPermission("meteorshield.bypass")) {
             return;
         }
 
@@ -38,13 +49,13 @@ public class AutoPlaceBlockListener implements Listener {
 
         if (lastPlaceTime.containsKey(uuid)) {
             long diff = now - lastPlaceTime.get(uuid);
-            if (diff < MIN_PLACE_INTERVAL_MS) {
+            if (diff < minPlaceIntervalMs) {
                 event.setCancelled(true);
                 
                 int vl = fastPlaceViolations.getOrDefault(uuid, 0) + 1;
                 fastPlaceViolations.put(uuid, vl);
 
-                if (vl >= 10) {
+                if (vl >= kickThreshold) {
                     Bukkit.getScheduler().runTask(plugin, () -> 
                         player.kickPlayer("§cAutoplace / Build Macro detected!")
                     );

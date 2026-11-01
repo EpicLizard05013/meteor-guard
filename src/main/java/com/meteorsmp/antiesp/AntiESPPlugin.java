@@ -52,6 +52,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private ItemSanity itemSanity;
     private OreWatch oreWatch;
     private GrimHook grimHook;
+    private AntiAutoclicker antiAutoclicker;
+    private AutoPlaceBlockListener autoPlaceBlockListener;
     private int tickCounter = 0;
     private boolean enabled = true;
 
@@ -67,7 +69,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private final Set<Material> alwaysOcclude = EnumSet.noneOf(Material.class);
     private final Set<Material> neverOcclude = EnumSet.noneOf(Material.class);
 
-  @Override
+    @Override
     public void onEnable() {
         saveDefaultConfig();
         saveDefaultDataFiles(); // Nambahan fungsi panyimpen file data otomatis
@@ -80,8 +82,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         grimHook = new GrimHook(this, alerts);
 
         // Register Combat & Macro protections
-        new AntiAutoclicker(this);
-        new AutoPlaceBlockListener(this);
+        antiAutoclicker = new AntiAutoclicker(this);
+        autoPlaceBlockListener = new AutoPlaceBlockListener(this);
 
         loadSettings();
 
@@ -90,9 +92,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(rateLimiter, this);
         getServer().getPluginManager().registerEvents(itemSanity, this);
         getServer().getPluginManager().registerEvents(oreWatch, this);
-
-        getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
-    }
 
         blockHider = new BlockHider(this);
         blockHider.start();
@@ -107,6 +106,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
         getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorAntiESP has been enabled!")));
+        getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
     }
 
     private void saveDefaultDataFiles() {
@@ -164,6 +164,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (oreWatch != null) oreWatch.reload();
         if (grimHook != null) grimHook.reload();
         if (blockHider != null) blockHider.reload();
+        if (antiAutoclicker != null) antiAutoclicker.reload();
+        if (autoPlaceBlockListener != null) autoPlaceBlockListener.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {
