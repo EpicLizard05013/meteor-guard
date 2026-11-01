@@ -52,6 +52,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private ItemSanity itemSanity;
     private OreWatch oreWatch;
     private GrimHook grimHook;
+    private AntiAutoclicker antiAutoclicker;
+    private AutoPlaceBlockListener autoPlaceBlockListener;
     private int tickCounter = 0;
     private boolean enabled = true;
 
@@ -80,8 +82,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         grimHook = new GrimHook(this, alerts);
 
         // Register Combat & Macro protections
-        new AntiAutoclicker(this);
-        new AutoPlaceBlockListener(this);
+        antiAutoclicker = new AntiAutoclicker(this);
+        autoPlaceBlockListener = new AutoPlaceBlockListener(this);
 
         loadSettings();
 
@@ -162,6 +164,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (oreWatch != null) oreWatch.reload();
         if (grimHook != null) grimHook.reload();
         if (blockHider != null) blockHider.reload();
+        if (antiAutoclicker != null) antiAutoclicker.reload();
+        if (autoPlaceBlockListener != null) autoPlaceBlockListener.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {

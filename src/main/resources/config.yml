@@ -116,6 +116,19 @@ rate-limits:
     max: 40
     window-seconds: 1
 
+# ---------------- Combat / macro checks ----------------
+combat-checks:
+  autoclicker:
+    enabled: true
+    max-cps: 18
+    min-sample-clicks: 10
+    macro-variance-threshold: 0.5
+    kick-violation-threshold: 5
+  autoplace:
+    enabled: true
+    min-place-interval-ms: 45
+    kick-violation-threshold: 10
+
 # ---------------- Illegal item checks ----------------
 item-checks:
   enabled: true
