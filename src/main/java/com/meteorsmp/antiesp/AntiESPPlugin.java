@@ -67,7 +67,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private final Set<Material> alwaysOcclude = EnumSet.noneOf(Material.class);
     private final Set<Material> neverOcclude = EnumSet.noneOf(Material.class);
 
-    @Override
+  @Override
     public void onEnable() {
         saveDefaultConfig();
         saveDefaultDataFiles(); // Nambahan fungsi panyimpen file data otomatis
@@ -79,6 +79,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         oreWatch = new OreWatch(this, alerts);
         grimHook = new GrimHook(this, alerts);
 
+        // Register Combat & Macro protections
+        new AntiAutoclicker(this);
+        new AutoPlaceBlockListener(this);
+
         loadSettings();
 
         getServer().getPluginManager().registerEvents(this, this);
@@ -86,6 +90,9 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(rateLimiter, this);
         getServer().getPluginManager().registerEvents(itemSanity, this);
         getServer().getPluginManager().registerEvents(oreWatch, this);
+
+        getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
+    }
 
         blockHider = new BlockHider(this);
         blockHider.start();
