@@ -67,10 +67,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private final Set<Material> alwaysOcclude = EnumSet.noneOf(Material.class);
     private final Set<Material> neverOcclude = EnumSet.noneOf(Material.class);
 
-  @Override
+    @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveDefaultDataFiles(); // Nambahan fungsi panyimpen file data otomatis
+        saveDefaultDataFiles();
 
         alerts = new AlertManager(this);
         joinProtection = new JoinProtection(this, alerts);
@@ -91,29 +91,26 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(itemSanity, this);
         getServer().getPluginManager().registerEvents(oreWatch, this);
 
-        getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
-    }
-
         blockHider = new BlockHider(this);
         blockHider.start();
 
-        PluginCommand cmd = getCommand("antifreecam");
+        PluginCommand cmd = getCommand("meteorguard");
         if (cmd != null) {
             cmd.setExecutor(this);
             cmd.setTabCompleter(this);
         } else {
-            getLogger().severe("Command 'antifreecam' is missing from plugin.yml!");
+            getLogger().severe("Command 'meteorguard' is missing from plugin.yml!");
         }
 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
-        getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorAntiESP has been enabled!")));
+        getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
+        getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorGuard has been enabled!")));
     }
 
     private void saveDefaultDataFiles() {
         String[] files = {
             "database.yml",
             "discord.yml",
-            "messages.yml",
             "punishments.yml"
         };
 
