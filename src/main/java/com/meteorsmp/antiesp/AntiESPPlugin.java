@@ -17,10 +17,15 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.util.BoundingBox;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
 import java.util.ArrayDeque;
@@ -54,6 +59,16 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private GrimHook grimHook;
     private int tickCounter = 0;
     private boolean enabled = true;
+    private static final int CONTROL_SIZE = 27;
+
+    private static final class ControlHolder implements InventoryHolder {
+        private Inventory inventory;
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
+    }
 
     private boolean debug;
     private boolean teamExempt;
@@ -143,6 +158,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private void loadSettings() {
         reloadConfig();
         debug = getConfig().getBoolean("debug", false);
+        enabled = getConfig().getBoolean("enabled", true);
         teamExempt = getConfig().getBoolean("team-exemption.enabled", true);
         checkInterval = Math.max(1, getConfig().getInt("check-interval", 2));
         maxPairsPerTick = Math.max(20, getConfig().getInt("max-pairs-per-tick", 300));
@@ -178,6 +194,46 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     private String msg(String key, String def) {
         return color(getConfig().getString("messages." + key, def));
+    }
+
+    private boolean isAdmin(CommandSender sender) {
+        return sender.hasPermission("meteorguard.admin") || sender.hasPermission("antifreecam.admin");
+    }
+
+    private ItemStack controlItem(Material material, String name, List<String> lore) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(color(name));
+        meta.setLore(lore.stream().map(this::color).toList());
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private void openControlRoom(Player player) {
+        ControlHolder holder = new ControlHolder();
+        holder.inventory = Bukkit.createInventory(holder, CONTROL_SIZE, color(msg("control-title", "&8MeteorGuard Control Room")));
+        int hiddenPairs = hidden.values().stream().mapToInt(Set::size).sum();
+        holder.inventory.setItem(10, controlItem(
+                enabled ? Material.LIME_DYE : Material.GRAY_DYE,
+                enabled ? "&aProtections: ENABLED" : "&cProtections: DISABLED",
+                List.of("&7Click to toggle all player protections.", "&fHidden pairs: &b" + hiddenPairs)));
+        holder.inventory.setItem(12, controlItem(
+                joinProtection.attackActive() ? Material.REDSTONE_BLOCK : Material.GREEN_CONCRETE,
+                joinProtection.attackActive() ? "&cAttack mode: ACTIVE" : "&aAttack mode: OFF",
+                List.of("&7Click to toggle join attack mode.")));
+        holder.inventory.setItem(14, controlItem(
+                blockHider != null && blockHider.isEnabled() ? Material.CHEST : Material.BARRIER,
+                blockHider != null && blockHider.isEnabled() ? "&aContainer hiding: ENABLED" : "&cContainer hiding: DISABLED",
+                List.of("&7Configured block hiding status.")));
+        holder.inventory.setItem(16, controlItem(Material.EMERALD,
+                "&bReload configuration",
+                List.of("&7Apply config.yml without restarting.")));
+        holder.inventory.setItem(22, controlItem(Material.BOOK, "&eLive status",
+                List.of("&7Online: &f" + Bukkit.getOnlinePlayers().size(),
+                        "&7Worlds: &f" + Bukkit.getWorlds().size(),
+                        "&7Alerts: &f" + (alerts != null ? "ready" : "unavailable"))));
+        player.openInventory(holder.inventory);
+        player.sendMessage(msg("control-opened", "&aControl room opened."));
     }
 
     public AlertManager getAlerts() {
@@ -371,10 +427,64 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (e.getNewGameMode() == GameMode.SPECTATOR) revealAll(e.getPlayer());
     }
 
+    @EventHandler
+    public void onControlClick(InventoryClickEvent event) {
+        if (!(event.getInventory().getHolder() instanceof ControlHolder)
+                || !(event.getWhoClicked() instanceof Player player)) return;
+        event.setCancelled(true);
+        if (!isAdmin(player)) {
+            player.closeInventory();
+            return;
+        }
+        switch (event.getRawSlot()) {
+            case 10 -> {
+                enabled = !enabled;
+                getConfig().set("enabled", enabled);
+                saveConfig();
+                if (!enabled) {
+                    for (Player online : Bukkit.getOnlinePlayers()) {
+                        revealAll(online);
+                        if (blockHider != null) blockHider.revealAll(online);
+                    }
+                }
+                player.sendMessage(msg(enabled ? "protection-enabled" : "protection-disabled",
+                        enabled ? "&aProtections enabled." : "&cProtections disabled."));
+            }
+            case 12 -> {
+                joinProtection.setAttack(!joinProtection.attackActive());
+                player.sendMessage(msg(joinProtection.attackActive() ? "attack-enabled" : "attack-disabled",
+                        joinProtection.attackActive() ? "&cAttack mode enabled." : "&aAttack mode disabled."));
+            }
+            case 14 -> {
+                if (blockHider != null) {
+                    boolean hidingEnabled = !blockHider.isEnabled();
+                    getConfig().set("block-hiding.enabled", hidingEnabled);
+                    saveConfig();
+                    blockHider.setEnabled(hidingEnabled);
+                }
+            }
+            case 16 -> {
+                loadSettings();
+                player.sendMessage(msg("config-reloaded", "&aConfiguration reloaded successfully!"));
+            }
+            default -> {
+            }
+        }
+        Bukkit.getScheduler().runTask(plugin, () -> openControlRoom(player));
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         String sub = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
-        boolean admin = sender.hasPermission("antifreecam.admin");
+        if (sub.isEmpty() || sub.equals("help")) {
+            sender.sendMessage(color("&6=== MeteorGuard Commands ==="));
+            sender.sendMessage(color("&e/" + label + " control &7- Open the live control room"));
+            sender.sendMessage(color("&e/" + label + " status &7- Show live protection status"));
+            sender.sendMessage(color("&e/" + label + " reload &7- Reload config.yml"));
+            sender.sendMessage(color("&e/" + label + " toggle &7- Enable or disable protections"));
+            return true;
+        }
+        boolean admin = isAdmin(sender);
         boolean alertsOnly = sub.equals("alerts") && sender.hasPermission("meteorshield.alerts");
         if (!admin && !alertsOnly) {
             sender.sendMessage(msg("no-permission", "&cYou do not have permission!"));
@@ -382,6 +492,13 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         }
 
         switch (sub) {
+            case "control":
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(ChatColor.RED + "Only players can open the control room.");
+                    return true;
+                }
+                openControlRoom(player);
+                return true;
             case "reload":
                 loadSettings();
                 sender.sendMessage(msg("config-reloaded", "&aConfiguration reloaded!"));
@@ -389,13 +506,16 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
             case "toggle":
                 enabled = !enabled;
+                getConfig().set("enabled", enabled);
+                saveConfig();
                 if (!enabled) {
                     for (Player p : Bukkit.getOnlinePlayers()) {
                         revealAll(p);
                         if (blockHider != null) blockHider.revealAll(p);
                     }
                 }
-                sender.sendMessage(color(enabled ? "&aAntiESP is now &lENABLED&a." : "&cAntiESP is now &lDISABLED&c."));
+                sender.sendMessage(msg(enabled ? "protection-enabled" : "protection-disabled",
+                        enabled ? "&aProtections enabled." : "&cProtections disabled."));
                 return true;
 
             case "bypass": {
@@ -462,7 +582,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             }
 
             default:
-                sender.sendMessage(ChatColor.YELLOW + "Usage: /antifreecam <reload|toggle|status|bypass [player]|alerts|attack [on|off]|scan <player>>");
+                sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|bypass [player]|alerts|attack [on|off]|scan <player>>");
                 return true;
         }
     }
@@ -471,7 +591,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            for (String s : new String[]{"reload", "toggle", "status", "bypass", "alerts", "attack", "scan"}) {
+            for (String s : new String[]{"help", "control", "reload", "toggle", "status", "bypass", "alerts", "attack", "scan"}) {
                 if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
             }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("attack")) {
