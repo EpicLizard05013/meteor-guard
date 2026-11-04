@@ -33,7 +33,7 @@ This project is built in Java and focuses on low-overhead checks, staff controls
 4. Start or restart the server.
 5. The plugin will generate its default `config.yml` on startup.
 6. Adjust settings in `plugins/Meteor-Guard/config.yml` as needed.
-7. Reload with `/meteor antifreecam reload`.
+7. Reload with `/meteor reload`.
 
 ## Commands
 
@@ -44,6 +44,7 @@ The plugin registers the following command:
 Subcommands:
 
 - `reload`
+- `control`
 - `toggle`
 - `status`
 - `bypass`
@@ -54,9 +55,10 @@ Subcommands:
 Example:
 
 ```bash
-/meteor antifreecam reload
-/meteor antifreecam status
-/meteor antifreecam bypass
+/meteor reload
+/meteor control
+/meteor status
+/meteor bypass
 ```
 
 ## Permissions
@@ -86,6 +88,11 @@ The plugin supports a wide set of configurable systems, including:
 - item checks and banned materials
 - ore watch thresholds
 - alert formatting and logging
+
+The `/meteor control` command opens a live in-game control room. Its buttons toggle
+the protections, container hiding, and join attack mode, reload `config.yml`, and
+show current runtime statistics. Changes made by the protection and container
+hiding buttons are saved back to `config.yml`.
 
 See `src/main/resources/config.yml` for the full default configuration.
 

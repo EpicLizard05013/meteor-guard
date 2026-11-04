@@ -1,4 +1,5 @@
 debug: false
+enabled: true
 
 # ---------------- Player hiding (line of sight) ----------------
 enabled-worlds: []
@@ -169,3 +170,9 @@ messages:
   config-reloaded: "&aConfiguration reloaded successfully!"
   bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
   bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
+  control-title: "&8MeteorGuard Control Room"
+  control-opened: "&aControl room opened."
+  protection-enabled: "&aMeteorGuard protections are now enabled."
+  protection-disabled: "&cMeteorGuard protections are now disabled."
+  attack-enabled: "&cJoin attack mode enabled."
+  attack-disabled: "&aJoin attack mode disabled."

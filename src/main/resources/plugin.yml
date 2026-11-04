@@ -9,8 +9,8 @@ commands:
   meteorguard:
     description: Main administrative command for MeteorGuard
     permission: meteorguard.admin
-    usage: /<command> [reload]
-    aliases: [antiesp, shield, antifreecam]
+    usage: /<command> [help|control|reload|toggle|status|bypass|alerts|attack|scan]
+    aliases: [meteor, antiesp, shield, antifreecam]
 
 permissions:
   meteorguard.admin:

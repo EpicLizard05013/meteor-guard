@@ -96,6 +96,17 @@ public final class BlockHider implements Listener {
         schedule();
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        if (!enabled) {
+            for (Player p : Bukkit.getOnlinePlayers()) revealAll(p);
+        }
+    }
+
     private void schedule() {
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 40L, interval);
     }
