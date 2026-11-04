@@ -238,7 +238,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
             if (shouldHide && !weHid) {
                 observer.hideEntity(this, target);
-                observer.listPlayer(target);
                 hidden.computeIfAbsent(oid, k -> new HashSet<>()).add(tid);
                 if (debug) getLogger().info("HIDE " + target.getName() + " from " + observer.getName());
             } else if (!shouldHide && weHid) {
