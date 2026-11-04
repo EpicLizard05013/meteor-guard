@@ -470,7 +470,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             default -> {
             }
         }
-        Bukkit.getScheduler().runTask(plugin, () -> openControlRoom(player));
+        Bukkit.getScheduler().runTask(this, () -> openControlRoom(player));
     }
 
     @Override
