@@ -1,3 +1,5 @@
+# --------------- Meteor-Guard Configuration ---------------
+
 debug: false
 enabled: true
 
@@ -159,6 +161,12 @@ ore-watch:
   burst-minutes: 10           # ...within this many minutes
   alert-cooldown-minutes: 5
 
+# ---------------- AntiFreecam ----------------
+anti-freecam:
+  enabled: true
+  max-y-level: 0 # max Y level to expose the deepslate layer
+  expose-y-level: 0 # This is when the surface is exposed
+  min-y-level: -64 # the max level at the bottom and then the antifreecam isnt working anymore.
 # ---------------- GrimAC link ----------------
 grim-hook:
   enabled: true
