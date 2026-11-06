@@ -1,23 +1,26 @@
-# --------------- Meteor-Guard Configuration ---------------
-
-debug: false
+# =====================================================================
+#  MeteorGuard config. Every setting here is read by the plugin.
+#  /meteorguard reload applies changes without a restart.
+# =====================================================================
 enabled: true
+debug: false
 
-# ---------------- Player hiding (line of sight) ----------------
-enabled-worlds: []
-check-interval: 2
-max-pairs-per-tick: 300
-max-distance: 128.0
-min-distance: 6.0
-thorough-check: false
+# ---------------- Player hiding (anti-ESP, line of sight) ----------------
+enabled-worlds: []          # [] = all worlds
+check-interval: 2           # ticks between full passes
+max-pairs-per-tick: 300     # performance budget: observer/target pairs checked per tick
+max-distance: 128.0         # players further than this are never hidden
+min-distance: 6.0           # players closer than this are never hidden
+thorough-check: false       # true = also test the four corners (fewer pop-ins, more CPU)
 ignore-spectators: true
+keep-tablist: true          # hidden players stay in the tab list
 
 team-exemption:
-  enabled: true
+  enabled: true             # players in the same scoreboard team never hide from each other
 
 occlusion:
-  always-occlude: []
-  never-occlude:
+  always-occlude: []        # extra blocks that always block line of sight
+  never-occlude:            # blocks you can see through
     - GLASS
     - GLASS_PANE
     - IRON_BARS
@@ -39,11 +42,11 @@ occlusion:
 # ---------------- Chest / spawner / container hiding ----------------
 block-hiding:
   enabled: true
-  reveal-distance: 16.0
+  reveal-distance: 16.0     # containers closer than this are shown
   scan-radius-chunks: 8
   check-interval: 10
   resend-every-passes: 10
-  fake-block: AIR
+  fake-block: AIR           # what far containers look like to the client
   hide-shulkers: true
   blocks:
     - CHEST
@@ -62,26 +65,75 @@ block-hiding:
     - BREWING_STAND
     - BEACON
 
+# ---------------- Anti plugin-scan (Meteor Client & similar) ----------------
+plugin-hider:
+  enabled: true
+  alert-on-attempt: true    # staff alert PLUGIN-SCAN when someone tries a blocked command
+  suggestions:
+    enabled: true           # hide the commands below from the client's command list + tab-complete
+    hide-namespaced: true   # hides essentials:ban, minecraft:give ... (new commands you make are NOT hidden)
+    hidden-commands:        # only these are hidden (they still WORK, just not suggested)
+      - lp
+      - luckperms
+      - tab
+      - skript
+      - sk
+      - grim
+      - grimac
+      - floodgate
+      - geyser
+      - viaversion
+      - viaver
+      - papi
+      - placeholderapi
+      - plugman
+      - spark
+      - timings
+      - paper
+      - purpur
+      - spigot
+      - bukkit
+      - worldedit
+      - we
+      - meteorguard
+      - meteor
+      - antiesp
+      - shield
+      - antifreecam
+  block-commands:
+    enabled: true
+    block-namespaced: true  # blocks typed commands like /bukkit:pl or /minecraft:me
+    commands:
+      - pl
+      - plugins
+      - ver
+      - version
+      - about
+      - icanhasbukkit
+      - "?"
+    message: '&cUnknown command. Type "/help" for help.'
+  # players with the permission meteorguard.seecommands (ops by default) see everything
+
 # ---------------- Staff alerts ----------------
 alerts:
   enabled: true
   format: "&8[&bShield&8] &f{player} &7- &c{check} &8(&7{details}&8)"
-  cooldown-seconds: 10        # same player + same check is shown/logged at most once per this time
-  log-to-file: true           # plugins/meteor-guard/logs/alerts-YYYY-MM-DD.log
+  cooldown-seconds: 10      # same player + same check is shown/logged at most once per this time
+  log-to-file: true         # plugins/MeteorGuard/data/alerts/YYYY-MM-DD.log
   console: true
 
 # ---------------- Bot & join protection ----------------
 join-protection:
   enabled: true
-  bedrock-prefix: "."         # Floodgate prefix: these accounts skip all join checks (Geyser players share one IP)
-  ignore-ips:                 # never IP-limited (proxy / Geyser loopback)
+  bedrock-prefix: "."       # Floodgate prefix: these accounts skip all join checks
+  ignore-ips:               # never IP-limited (proxy / Geyser loopback)
     - "127.0.0.1"
     - "0:0:0:0:0:0:0:1"
   ip-limits:
     enabled: true
-    max-joins: 4              # login attempts from one IP...
-    window-seconds: 30        # ...within this time
-    max-accounts-per-ip: 3    # accounts online at once from one IP
+    max-joins: 4            # login attempts from one IP...
+    window-seconds: 30      # ...within this time
+    max-accounts-per-ip: 3  # accounts online at once from one IP
     message: "&cToo many connections from your IP. Please wait a moment and try again."
   name-filter:
     enabled: true
@@ -90,13 +142,13 @@ join-protection:
     message: "&cThat username is not allowed."
   attack-mode:
     enabled: true
-    joins-threshold: 12       # this many login attempts...
-    window-seconds: 10        # ...within this time starts attack mode
-    duration-seconds: 120     # stays on this long (extended while the attack continues)
+    joins-threshold: 12     # this many login attempts...
+    window-seconds: 10      # ...within this time starts attack mode
+    duration-seconds: 120   # stays on this long (extended while the attack continues)
     block-new-players: false  # true = accounts that never joined before are refused during an attack
     message: "&cThe server is under a join attack. New players can't join right now, try again in a few minutes."
   verification:
-    mode: attack              # off | attack (untrusted players during an attack) | always (every untrusted player)
+    mode: attack            # off | attack (untrusted players during an attack) | always
     timeout-seconds: 20
     trusted-playtime-minutes: 30
     title: "&8Click the &aLIME &8pane to verify"
@@ -108,23 +160,41 @@ rate-limits:
     max-messages: 5
     window-seconds: 4
     block-repeats: true
-  commands:
-    max-commands: 8
-    window-seconds: 4
-    max-length: 256
+    message: "&cSlow down, you're sending messages too fast."
   inventory-clicks:
     max-clicks: 60
     window-seconds: 1
-  interactions:               # alert only, never cancels
+  interactions:             # alert only, never cancels
     max: 40
     window-seconds: 1
+
+# ---------------- Combat / macro checks ----------------
+combat:
+  autoclicker:
+    enabled: true
+    max-cps: 18
+    macro-detection:
+      enabled: true
+      min-clicks: 10        # needs this many clicks in the last second to judge
+      max-std-dev-ms: 0.5   # click timing more consistent than this = macro
+    violations-before-action: 5
+    violation-memory-seconds: 60   # flags older than this are forgotten
+    action: kick            # alert | kick
+    kick-message: "&cUnfair advantage detected: {reason}"
+  build-macro:
+    enabled: true
+    min-place-interval-ms: 45      # blocks placed faster than this are cancelled
+    violations-before-action: 10
+    violation-memory-seconds: 30
+    action: kick            # alert | kick (placement is always cancelled)
+    kick-message: "&cAutoplace / Build Macro detected!"
 
 # ---------------- Illegal item checks ----------------
 item-checks:
   enabled: true
-  action: remove              # alert | remove | kick   (remove and kick also alert)
+  action: remove            # alert | remove | kick   (remove and kick also alert)
   scan-on-join: true
-  periodic-scan-seconds: 60   # 0 = off
+  periodic-scan-seconds: 60 # 0 = off
   max-serialized-bytes: 20000
   max-name-length: 120
   max-lore-lines: 20
@@ -143,11 +213,7 @@ item-checks:
     - DEBUG_STICK
     - KNOWLEDGE_BOOK
     - LIGHT
-# ---------------- Punishments ---------------
-punishments:
-  auto-punish: true
-  threshold: 3
-  command: "tempban %player% 1d [MeteorGuard] Detected of esp: %reason%"
+
 # ---------------- Ore ratio alerts (alert only) ----------------
 ore-watch:
   enabled: true
@@ -155,22 +221,16 @@ ore-watch:
     - DIAMOND_ORE
     - DEEPSLATE_DIAMOND_ORE
     - ANCIENT_DEBRIS
-  min-sample: 150             # stone-type blocks mined before the ratio is judged
-  max-ratio: 0.06             # tracked ores / (stone + tracked ores)
-  burst-count: 10             # or this many tracked ores...
-  burst-minutes: 10           # ...within this many minutes
+  min-sample: 150           # stone-type blocks mined before the ratio is judged
+  max-ratio: 0.06           # tracked ores / (stone + tracked ores)
+  burst-count: 10           # or this many tracked ores...
+  burst-minutes: 10         # ...within this many minutes
   alert-cooldown-minutes: 5
 
-# ---------------- AntiFreecam ----------------
-anti-freecam:
-  enabled: true
-  max-y-level: 0 # max Y level to expose the deepslate layer
-  expose-y-level: 0 # This is when the surface is exposed
-  min-y-level: -64 # the max level at the bottom and then the antifreecam isnt working anymore.
 # ---------------- GrimAC link ----------------
 grim-hook:
   enabled: true
-  broadcast: false            # Grim already alerts its own staff; true = also show Grim flags in the Shield format
+  broadcast: false          # Grim already alerts its own staff; true = also show Grim flags in the Shield format
 
 messages:
   plugin-enabled: "&ameteor-guard has been enabled!"
