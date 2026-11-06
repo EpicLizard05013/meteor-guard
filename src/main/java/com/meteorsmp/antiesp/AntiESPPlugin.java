@@ -27,7 +27,6 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -57,6 +56,11 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private ItemSanity itemSanity;
     private OreWatch oreWatch;
     private GrimHook grimHook;
+    private CommandHider commandHider;
+    private TabListKeeper tabKeeper;
+    private AntiAutoclicker autoclicker;
+    private AutoPlaceBlockListener buildMacro;
+    private boolean keepTablist;
     private int tickCounter = 0;
     private boolean enabled = true;
     private static final int CONTROL_SIZE = 27;
@@ -85,7 +89,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveDefaultDataFiles();
 
         alerts = new AlertManager(this);
         joinProtection = new JoinProtection(this, alerts);
@@ -93,10 +96,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         itemSanity = new ItemSanity(this, alerts);
         oreWatch = new OreWatch(this, alerts);
         grimHook = new GrimHook(this, alerts);
-
-        // Register Combat & Macro protections
-        new AntiAutoclicker(this);
-        new AutoPlaceBlockListener(this);
+        commandHider = new CommandHider(this, alerts);
+        tabKeeper = new TabListKeeper(getLogger());
+        autoclicker = new AntiAutoclicker(this);
+        buildMacro = new AutoPlaceBlockListener(this);
 
         loadSettings();
 
@@ -105,6 +108,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(rateLimiter, this);
         getServer().getPluginManager().registerEvents(itemSanity, this);
         getServer().getPluginManager().registerEvents(oreWatch, this);
+        getServer().getPluginManager().registerEvents(commandHider, this);
 
         blockHider = new BlockHider(this);
         blockHider.start();
@@ -120,26 +124,6 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
         getLogger().info("MeteorGuard Combat & Macro protections successfully loaded!");
         getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorGuard has been enabled!")));
-    }
-
-    private void saveDefaultDataFiles() {
-        String[] files = {
-            "database.yml",
-            "discord.yml",
-            "punishments.yml"
-        };
-
-        for (String fileName : files) {
-            File file = new File(getDataFolder(), fileName);
-            if (!file.exists()) {
-                saveResource(fileName, false);
-            }
-        }
-
-        File alertFolder = new File(getDataFolder(), "data/alerts");
-        if (!alertFolder.exists()) {
-            alertFolder.mkdirs();
-        }
     }
 
     @Override
@@ -166,6 +150,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         minDist = Math.max(0.0, getConfig().getDouble("min-distance", 6.0));
         thorough = getConfig().getBoolean("thorough-check", false);
         ignoreSpectators = getConfig().getBoolean("ignore-spectators", true);
+        keepTablist = getConfig().getBoolean("keep-tablist", true);
         enabledWorlds = new HashSet<>(getConfig().getStringList("enabled-worlds"));
         loadMaterials("occlusion.always-occlude", alwaysOcclude);
         loadMaterials("occlusion.never-occlude", neverOcclude);
@@ -177,6 +162,9 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (oreWatch != null) oreWatch.reload();
         if (grimHook != null) grimHook.reload();
         if (blockHider != null) blockHider.reload();
+        if (commandHider != null) commandHider.reload();
+        if (autoclicker != null) autoclicker.reload();
+        if (buildMacro != null) buildMacro.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {
@@ -294,6 +282,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
             if (shouldHide && !weHid) {
                 observer.hideEntity(this, target);
+                if (keepTablist) tabKeeper.relist(observer, target);
                 hidden.computeIfAbsent(oid, k -> new HashSet<>()).add(tid);
                 if (debug) getLogger().info("HIDE " + target.getName() + " from " + observer.getName());
             } else if (!shouldHide && weHid) {
