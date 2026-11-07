@@ -10,6 +10,7 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.bstats.org/content/repositories/releases/")
+    maven("https://repo.codemc.io/repository/maven-releases/")
 }
 
 dependencies {
