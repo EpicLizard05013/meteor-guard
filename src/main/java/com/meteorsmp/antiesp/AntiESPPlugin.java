@@ -60,6 +60,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private TabListKeeper tabKeeper;
     private AntiAutoclicker autoclicker;
     private AutoPlaceBlockListener buildMacro;
+    private DepthMask depthMask;
     private boolean keepTablist;
     private int tickCounter = 0;
     private boolean enabled = true;
@@ -102,6 +103,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         buildMacro = new AutoPlaceBlockListener(this);
 
         loadSettings();
+        startDepthMask();
 
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(joinProtection, this);
@@ -126,8 +128,24 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorGuard has been enabled!")));
     }
 
+    private void startDepthMask() {
+        if (!getConfig().getBoolean("depth-mask.enabled", false)) return;
+        if (Bukkit.getPluginManager().getPlugin("packetevents") == null) {
+            getLogger().warning("depth-mask is enabled but the PacketEvents plugin is not installed - skipping.");
+            return;
+        }
+        try {
+            depthMask = new DepthMask(this);
+            depthMask.start();
+        } catch (Throwable t) {
+            getLogger().warning("depth-mask could not start: " + t);
+            depthMask = null;
+        }
+    }
+
     @Override
     public void onDisable() {
+        if (depthMask != null) depthMask.stop();
         if (blockHider != null) blockHider.stop();
         if (joinProtection != null) joinProtection.shutdown();
         if (itemSanity != null) itemSanity.shutdown();
@@ -165,6 +183,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (commandHider != null) commandHider.reload();
         if (autoclicker != null) autoclicker.reload();
         if (buildMacro != null) buildMacro.reload();
+        if (depthMask != null) depthMask.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {
