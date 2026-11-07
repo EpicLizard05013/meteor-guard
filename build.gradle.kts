@@ -9,24 +9,21 @@ version = "1.2"
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://repo.bstats.org/content/repositories/releases/")
     maven("https://repo.codemc.io/repository/maven-releases/")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    implementation("org.bstats:bstats-bukkit:3.0.2")
+    compileOnly("com.github.retrooper:packetevents-spigot:2.13.0")
 }
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
 
-sourceSets {
-    main {
-        resources {
-            srcDirs("src/main/resources", "data")
-        }
+tasks.jar {
+    manifest {
+        attributes["paperweight-mappings-namespace"] = "mojang"
     }
 }
 
