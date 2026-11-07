@@ -2,7 +2,7 @@ name: MeteorGuard
 version: '1.2'
 main: com.meteorsmp.antiesp.AntiESPPlugin
 api-version: '1.21'
-softdepend: [GrimAC, floodgate, Luckperms]
+softdepend: [GrimAC, floodgate, LuckPerms, packetevents]
 description: Advanced anti-ESP, container hiding, join protection, item checks, and staff alerts.
 
 commands:
@@ -15,6 +15,9 @@ commands:
 permissions:
   meteorguard.admin:
     description: Allows full administrative access to MeteorGuard commands
+    default: op
+  meteorguard.seecommands:
+    description: See every command in tab-complete and use plugin-list commands
     default: op
   antifreecam.admin:
     default: op
