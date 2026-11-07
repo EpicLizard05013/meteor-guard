@@ -7,103 +7,100 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.Plugin;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 public class AntiAutoclicker implements Listener {
 
-    private final Plugin plugin;
-    private final Map<UUID, List<Long>> clickTimestamps = new HashMap<>();
-    private final Map<UUID, Integer> violationLevels = new HashMap<>();
+    private final AntiESPPlugin plugin;
+    private final Map<UUID, List<Long>> clicks = new HashMap<>();
+    private final Map<UUID, Integer> violations = new HashMap<>();
+    private final Map<UUID, Long> lastViolation = new HashMap<>();
 
-    // Maximum allowed CPS before flagging
-    private static final int MAX_CPS = 18;
-    // Threshold for macro detection (too consistent interval variance)
-    private static final double MACRO_VARIANCE_THRESHOLD = 0.5;
+    private boolean enabled, macroEnabled, kick;
+    private int maxCps, macroMinClicks, maxViolations;
+    private double macroMaxStdDev;
+    private long memoryMs;
+    private String kickMessage;
 
-    public AntiAutoclicker(Plugin plugin) {
+    public AntiAutoclicker(AntiESPPlugin plugin) {
         this.plugin = plugin;
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
+    public void reload() {
+        var c = plugin.getConfig();
+        String p = "combat.autoclicker.";
+        enabled = c.getBoolean(p + "enabled", true);
+        maxCps = Math.max(5, c.getInt(p + "max-cps", 18));
+        macroEnabled = c.getBoolean(p + "macro-detection.enabled", true);
+        macroMinClicks = Math.max(5, c.getInt(p + "macro-detection.min-clicks", 10));
+        macroMaxStdDev = c.getDouble(p + "macro-detection.max-std-dev-ms", 0.5);
+        maxViolations = Math.max(1, c.getInt(p + "violations-before-action", 5));
+        memoryMs = Math.max(5, c.getInt(p + "violation-memory-seconds", 60)) * 1000L;
+        kick = c.getString(p + "action", "kick").equalsIgnoreCase("kick");
+        kickMessage = c.getString(p + "kick-message", "&cUnfair advantage detected: {reason}");
+    }
+
     @EventHandler
     public void onPlayerClick(PlayerInteractEvent event) {
-        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) {
-            return;
-        }
+        if (!enabled) return;
+        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
         Player player = event.getPlayer();
-        if (player.hasPermission("meteorguard.bypass")) {
-            return;
-        }
+        if (player.hasPermission("meteorguard.bypass")) return;
 
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
-
-        clickTimestamps.putIfAbsent(uuid, new ArrayList<>());
-        List<Long> timestamps = clickTimestamps.get(uuid);
-
+        List<Long> timestamps = clicks.computeIfAbsent(uuid, k -> new ArrayList<>());
         timestamps.add(now);
-
-        // Remove clicks older than 1 second (1000ms)
         timestamps.removeIf(time -> now - time > 1000);
 
-        int currentCps = timestamps.size();
-
-        // Check 1: Raw CPS limit exceeded
-        if (currentCps > MAX_CPS) {
-            handleViolation(player, "High CPS (" + currentCps + " CPS)");
+        int cps = timestamps.size();
+        if (cps > maxCps) {
+            flag(player, "High CPS (" + cps + " CPS)");
             return;
         }
-
-        // Check 2: Macro Check (Inhuman click interval consistency)
-        if (timestamps.size() >= 10) {
-            if (isMacroPattern(timestamps)) {
-                handleViolation(player, "Autoclicker / Macro Detected (Inhuman Consistency)");
-            }
+        if (macroEnabled && timestamps.size() >= macroMinClicks && isMacroPattern(timestamps)) {
+            flag(player, "Autoclicker / Macro (inhuman click consistency)");
         }
     }
 
     private boolean isMacroPattern(List<Long> timestamps) {
         List<Long> intervals = new ArrayList<>();
-        for (int i = 1; i < timestamps.size(); i++) {
-            intervals.add(timestamps.get(i) - timestamps.get(i - 1));
-        }
-
-        double mean = intervals.stream().mapToLong(val -> val).average().orElse(0.0);
-        double variance = intervals.stream().mapToDouble(val -> Math.pow(val - mean, 2)).average().orElse(0.0);
-        double stdDev = Math.sqrt(variance);
-
-        // If standard deviation of click intervals is extremely low, it's an automated macro
-        return stdDev < MACRO_VARIANCE_THRESHOLD && mean > 0;
+        for (int i = 1; i < timestamps.size(); i++) intervals.add(timestamps.get(i) - timestamps.get(i - 1));
+        double mean = intervals.stream().mapToLong(v -> v).average().orElse(0.0);
+        double variance = intervals.stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0.0);
+        return Math.sqrt(variance) < macroMaxStdDev && mean > 0;
     }
 
-    private void handleViolation(Player player, String reason) {
-        UUID uuid = player.getUniqueId();
-        int vl = violationLevels.getOrDefault(uuid, 0) + 1;
-        violationLevels.put(uuid, vl);
+    private void flag(Player player, String reason) {
+        UUID id = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        boolean stale = now - lastViolation.getOrDefault(id, 0L) > memoryMs;
+        int vl = (stale ? 0 : violations.getOrDefault(id, 0)) + 1;
+        violations.put(id, vl);
+        lastViolation.put(id, now);
 
-        // Alert staff & console
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            Bukkit.getConsoleSender().sendMessage("§c[MeteorGuard] " + player.getName() + " failed combat checks: " + reason + " (VL: " + vl + ")");
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.hasPermission("meteorguard.notify")) {
-                    p.sendMessage("§8[§cMG§8] §e" + player.getName() + " §7failed §c" + reason);
-                }
-            }
+        plugin.getAlerts().alert("AUTOCLICKER", player.getName(), reason + " (VL " + vl + ")");
 
-            if (vl >= 5) {
-                player.kickPlayer("§cUnfair advantage detected: " + reason);
-                violationLevels.remove(uuid);
-            }
-        });
+        if (vl >= maxViolations) {
+            violations.remove(id);
+            lastViolation.remove(id);
+            clicks.remove(id);
+            if (kick) player.kick(AlertManager.c(kickMessage.replace("{reason}", reason)));
+        }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
-        clickTimestamps.remove(uuid);
-        violationLevels.remove(uuid);
+        clicks.remove(uuid);
+        violations.remove(uuid);
+        lastViolation.remove(uuid);
     }
 }
