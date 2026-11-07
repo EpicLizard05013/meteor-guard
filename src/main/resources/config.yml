@@ -168,6 +168,19 @@ rate-limits:
     max: 40
     window-seconds: 1
 
+# ---------------- Depth mask (cave / freecam protection, needs PacketEvents) ----------------
+depth-mask:
+  enabled: false            # restart the server after changing this one
+  worlds:
+    - world                 # overworld only; do not add the nether or end
+  switch-down-y: 20         # player below this Y = underground mode
+  switch-up-y: 50           # player above this Y = surface mode again
+  surface-mode:
+    mask-below-y: -8        # at the surface, everything below this Y shows as deepslate
+  underground-mode:
+    mask-above-y: 64        # underground, everything above this Y shows as stone
+  resend-cooldown-seconds: 5
+
 # ---------------- Combat / macro checks ----------------
 combat:
   autoclicker:
