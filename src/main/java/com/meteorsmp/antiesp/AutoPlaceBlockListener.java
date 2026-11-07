@@ -6,7 +6,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,50 +13,66 @@ import java.util.UUID;
 
 public class AutoPlaceBlockListener implements Listener {
 
-    private final Plugin plugin;
+    private final AntiESPPlugin plugin;
     private final Map<UUID, Long> lastPlaceTime = new HashMap<>();
-    private final Map<UUID, Integer> fastPlaceViolations = new HashMap<>();
+    private final Map<UUID, Integer> violations = new HashMap<>();
+    private final Map<UUID, Long> lastViolation = new HashMap<>();
 
-    // Minimum milliseconds allowed between block placements (e.g., 50ms = max 20 blocks/sec)
-    private static final long MIN_PLACE_INTERVAL_MS = 45;
+    private boolean enabled, kick;
+    private long minInterval, memoryMs;
+    private int maxViolations;
+    private String kickMessage;
 
-    public AutoPlaceBlockListener(Plugin plugin) {
+    public AutoPlaceBlockListener(AntiESPPlugin plugin) {
         this.plugin = plugin;
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
+    public void reload() {
+        var c = plugin.getConfig();
+        String p = "combat.build-macro.";
+        enabled = c.getBoolean(p + "enabled", true);
+        minInterval = Math.max(1, c.getLong(p + "min-place-interval-ms", 45));
+        maxViolations = Math.max(1, c.getInt(p + "violations-before-action", 10));
+        memoryMs = Math.max(5, c.getInt(p + "violation-memory-seconds", 30)) * 1000L;
+        kick = c.getString(p + "action", "kick").equalsIgnoreCase("kick");
+        kickMessage = c.getString(p + "kick-message", "&cAutoplace / Build Macro detected!");
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
+        if (!enabled) return;
         Player player = event.getPlayer();
-        if (player.hasPermission("meteorguard.bypass")) {
-            return;
-        }
+        if (player.hasPermission("meteorguard.bypass")) return;
 
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
+        Long last = lastPlaceTime.put(uuid, now);
 
-        if (lastPlaceTime.containsKey(uuid)) {
-            long diff = now - lastPlaceTime.get(uuid);
-            if (diff < MIN_PLACE_INTERVAL_MS) {
-                event.setCancelled(true);
-                
-                int vl = fastPlaceViolations.getOrDefault(uuid, 0) + 1;
-                fastPlaceViolations.put(uuid, vl);
+        if (last != null && now - last < minInterval) {
+            event.setCancelled(true);
 
-                if (vl >= 10) {
-                    Bukkit.getScheduler().runTask(plugin, () -> 
-                        player.kickPlayer("§cAutoplace / Build Macro detected!")
-                    );
-                }
+            boolean stale = now - lastViolation.getOrDefault(uuid, 0L) > memoryMs;
+            int vl = (stale ? 0 : violations.getOrDefault(uuid, 0)) + 1;
+            violations.put(uuid, vl);
+            lastViolation.put(uuid, now);
+
+            plugin.getAlerts().alert("BUILD-MACRO", player.getName(),
+                    "blocks placed " + (now - last) + "ms apart (VL " + vl + ")");
+
+            if (vl >= maxViolations) {
+                violations.remove(uuid);
+                lastViolation.remove(uuid);
+                if (kick) player.kick(AlertManager.c(kickMessage));
             }
         }
-        lastPlaceTime.put(uuid, now);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         lastPlaceTime.remove(uuid);
-        fastPlaceViolations.remove(uuid);
+        violations.remove(uuid);
+        lastViolation.remove(uuid);
     }
 }
