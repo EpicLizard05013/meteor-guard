@@ -1,5 +1,7 @@
 # Meteor-Guard
 
+For some reason GitHub tought I was using copilot. I used it to navigate.
+
 A lightweight Paper/Purpur anti-cheat plugin for Minecraft 1.21.11 designed to block common ESP, wallhack, freecam, and underground X-ray style behavior while preserving normal server performance.
 
 This project is built in Java and focuses on low-overhead checks, staff controls, join protection, item sanity scanning, and anti-freecam shielding.
