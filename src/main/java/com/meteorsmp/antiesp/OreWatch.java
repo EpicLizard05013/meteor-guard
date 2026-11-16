@@ -12,9 +12,11 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayDeque;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -25,12 +27,14 @@ public final class OreWatch implements Listener {
     private static final class Stat {
         double base;
         double ores;
+        final Map<Material, Integer> oreCounts = new EnumMap<>(Material.class);
         final ArrayDeque<Long> recent = new ArrayDeque<>();
         long lastAlert;
     }
 
     private final AntiESPPlugin plugin;
     private final AlertManager alerts;
+    private final SuspiciousManager suspicious;
     private final Map<UUID, Stat> stats = new HashMap<>();
     private final Set<Material> tracked = EnumSet.noneOf(Material.class);
     private BukkitTask decayTask;
@@ -40,9 +44,10 @@ public final class OreWatch implements Listener {
     private double maxRatio;
     private long burstMs, cooldownMs;
 
-    public OreWatch(AntiESPPlugin plugin, AlertManager alerts) {
+    public OreWatch(AntiESPPlugin plugin, AlertManager alerts, SuspiciousManager suspicious) {
         this.plugin = plugin;
         this.alerts = alerts;
+        this.suspicious = suspicious;
     }
 
     public void reload() {
@@ -98,6 +103,7 @@ public final class OreWatch implements Listener {
         if (isBase) s.base++;
         if (isOre) {
             s.ores++;
+            s.oreCounts.merge(m, 1, Integer::sum);
             s.recent.addLast(now);
         }
         while (!s.recent.isEmpty() && now - s.recent.peekFirst() > burstMs) s.recent.pollFirst();
@@ -109,10 +115,11 @@ public final class OreWatch implements Listener {
             s.lastAlert = now;
             String why = burstBad
                     ? s.recent.size() + " rare ores in " + (burstMs / 60_000L) + " min"
-                    : String.format(Locale_US, "ratio %.1f%% (%d ores / %d blocks)", s.ores / total * 100.0, (int) s.ores, (int) total);
+                    : String.format(Locale.US, "ratio %.1f%% (%d ores / %d blocks)", s.ores / total * 100.0, (int) s.ores, (int) total);
             alerts.alert("ORE-RATIO", p.getName(), why);
+            if (suspicious != null) {
+                suspicious.record(p, why, (int) Math.round(s.ores), (int) Math.round(s.base), s.oreCounts, e.getBlock().getLocation());
+            }
         }
     }
-
-    private static final java.util.Locale Locale_US = java.util.Locale.US;
 }
