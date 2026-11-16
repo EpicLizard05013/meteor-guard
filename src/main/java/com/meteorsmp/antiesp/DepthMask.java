@@ -20,10 +20,12 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Hides deepslate caves from players at the surface and the surface from players underground
@@ -44,11 +46,14 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
     private final Map<UUID, Integer> resending = new HashMap<>(); // main thread only
     private final int deepslateId;
     private final int stoneId;
+    private final AtomicLong maskedChunks = new AtomicLong();
+    private final AtomicLong blockedUpdates = new AtomicLong();
     private BukkitTask task;
 
     private volatile Set<String> worlds = new HashSet<>();
     private volatile int maskBelowY, maskAboveY, switchDownY, switchUpY;
     private volatile long cooldownMs;
+    private volatile boolean hideEntities = true;
 
     public DepthMask(AntiESPPlugin plugin) {
         // HIGHEST = runs after GrimAC has read the real chunk data
@@ -79,15 +84,64 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
 
     public void reload() {
         var c = plugin.getConfig();
-        String p = "depth-mask.";
-        worlds = new HashSet<>(c.getStringList(p + "worlds"));
+        String p = c.isConfigurationSection("antifreecam") ? "antifreecam." : "depth-mask.";
+        List<String> wList = c.getStringList(p + "worlds");
+        worlds = new HashSet<>(wList);
         maskBelowY = c.getInt(p + "surface-mode.mask-below-y", -8);
         maskAboveY = c.getInt(p + "underground-mode.mask-above-y", 64);
         switchDownY = c.getInt(p + "switch-down-y", 20);
         switchUpY = Math.max(switchDownY, c.getInt(p + "switch-up-y", 50));
         cooldownMs = Math.max(1, c.getInt(p + "resend-cooldown-seconds", 5)) * 1000L;
+        hideEntities = c.getBoolean(p + "hide-entities", true);
         // everyone is re-evaluated (and their chunks re-sent) on the next pass
         for (State s : states.values()) s.mode = null;
+    }
+
+    private boolean appliesToWorld(World w) {
+        if (w.getEnvironment() != World.Environment.NORMAL) return false;
+        return worlds.isEmpty() || worlds.contains(w.getName());
+    }
+
+    public boolean isHideEntities() {
+        return hideEntities;
+    }
+
+    public boolean isMaskedAt(Player p, int y) {
+        State st = states.get(p.getUniqueId());
+        if (st == null || st.mode == null) return false;
+        return st.mode == Mode.SURFACE ? y < maskBelowY : y > maskAboveY;
+    }
+
+    public String describe(Player p) {
+        if (plugin.hasBypass(p)) return "bypassed";
+        if (!appliesToWorld(p.getWorld())) return "inactive (" + p.getWorld().getName() + ")";
+        State st = states.get(p.getUniqueId());
+        if (st == null || st.mode == null) return "initializing";
+        return st.mode == Mode.SURFACE
+                ? "SURFACE (masking below Y=" + maskBelowY + ")"
+                : "UNDERGROUND (masking above Y=" + maskAboveY + ")";
+    }
+
+    public void refresh(Player p) {
+        states.remove(p.getUniqueId());
+        resend(p);
+    }
+
+    public int trackedPlayers() {
+        return states.size();
+    }
+
+    public long chunksMasked() {
+        return maskedChunks.get();
+    }
+
+    public long blockUpdatesBlocked() {
+        return blockedUpdates.get();
+    }
+
+    public String summary() {
+        return "Switch down < Y=" + switchDownY + ", up > Y=" + switchUpY
+                + " | Surface mask < Y=" + maskBelowY + " | Underground mask > Y=" + maskAboveY;
     }
 
     // ---------------- main thread: decide the mode per player ----------------
@@ -98,7 +152,7 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
             World w = p.getWorld();
             State st = states.get(id);
 
-            if (!worlds.contains(w.getName()) || plugin.hasBypass(p)) {
+            if (!appliesToWorld(w) || plugin.hasBypass(p)) {
                 if (st != null) {
                     states.remove(id);
                     resend(p); // give the client the real chunks back
@@ -177,12 +231,18 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
                 fill(chunks[i], filler);
                 changed = true;
             }
-            if (changed) event.markForReEncode(true);
+            if (changed) {
+                maskedChunks.incrementAndGet();
+                event.markForReEncode(true);
+            }
         } else {
             // a single block changing inside a masked area must not leak the real block
             int y = new WrapperPlayServerBlockChange(event).getBlockPosition().getY();
             boolean masked = mode == Mode.SURFACE ? y < maskBelowY : y > maskAboveY;
-            if (masked) event.setCancelled(true);
+            if (masked) {
+                blockedUpdates.incrementAndGet();
+                event.setCancelled(true);
+            }
         }
     }
 
