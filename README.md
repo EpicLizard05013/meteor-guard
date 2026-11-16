@@ -1,101 +1,49 @@
-# Meteor-Guard
+# MeteorGuard
 
-For some reason GitHub tought I was using copilot. I used it to navigate.
-
-A lightweight Paper/Purpur anti-cheat plugin for Minecraft 1.21.11 designed to block common ESP, wallhack, freecam, and underground X-ray style behavior while preserving normal server performance.
-
-This project is built in Java and focuses on low-overhead checks, staff controls, join protection, item sanity scanning, and anti-freecam shielding.
+A Paper 1.21.x anti-cheat / anti-ESP plugin focused on freecam, xray and client-mod abuse, with low overhead.
 
 ## Features
 
-- Anti-ESP / line-of-sight occlusion checks for players and hidden rendering
-- AntiFreecam protection and subterranean masking behavior
-- Container hiding for chests, spawners, furnaces, shulkers, and similar blocks
-- Staff alerts and logging with configurable cooldowns
-- Join protection against bot-style attacks, IP abuse, and suspicious names
-- Rate limiting for chat, commands, inventory clicks, and interaction spam
-- Illegal item detection and cleanup/removal options
-- Ore-ratio monitoring for mining anomalies
-- GrimAC integration support
-- Lightweight async processing designed for low-end and high-traffic servers
+- **AntiFreecam (always on, no switch)** - surface players get deepslate where the deep caves are, players underground get stone where the surface is. Mobs, items and armor stands inside the hidden area are hidden too. Built on PacketEvents.
+- **Anti-ESP** - players behind walls are hidden (they stay in the tab list); chests, spawners, furnaces, shulkers... are hidden from far-away players.
+- **Stash-entity hiding** - dropped items, item frames, chest minecarts and armor stands behind walls are hidden (item/stash ESP).
+- **Anti plugin-scan** - `/pl`, `/ver`, namespaced commands and tab-complete scans (Meteor Client) see nothing; `/meteor` looks like an unknown command to players without permission.
+- **Client checks** - blocked cheat-client brands (alert or kick) and "vanilla" brands that registered Fabric/Forge channels.
+- **Lag protection** - auto-throttles itself when TPS drops, caps mobs per chunk, optional timed clear of dropped items, `/meteor perf` report.
+- **Discord alerts** - alerts can also go to a Discord webhook.
+- **Packet limiter** - drops packet floods (crash attempts) and kicks extreme ones.
+- **Auto punishments** - optional console commands when a player triggers the same alert repeatedly.
+- Join protection (bot/IP limits, attack mode, verification), rate limits, illegal item scanning, ore-ratio alerts, auto-clicker and build-macro checks, GrimAC link, staff alerts with log files.
 
 ## Requirements
 
-- Server software: Paper or Purpur 1.21.11
-- Java: 21
-- Dependencies:
-  - [GrimAC](https://github.com/retrooper/grimac)
-  - [Luckperms](https://github.com/retrooper/luckperms)
-
-## Installation
-
-1. Download the plugin jar from the Releases section or build it locally.
-2. Place both required dependencies in your server's `plugins/` folder.
-3. Drop `Meteor-Guard.jar` into the same `plugins/` directory.
-4. Start or restart the server.
-5. The plugin will generate its default `config.yml` on startup.
-6. Adjust settings in `plugins/Meteor-Guard/config.yml` as needed.
-7. Reload with `/meteor reload`.
+- Paper or Purpur 1.21.x, Java 21
+- **PacketEvents 2.13.0+** plugin (required - AntiFreecam needs it)
+- Optional: GrimAC, LuckPerms, Floodgate. ProtocolLib is not needed by this plugin.
 
 ## Commands
 
-The plugin registers the following command:
+`/meteor` or `/meteorguard` - everything is a subcommand of these two (same command, either name).
 
-- `/meteor` or `/antifreecam` or `/antiesp` or `/shield`
+| Command | What it does |
+|---|---|
+| `/meteor control` | live control room GUI |
+| `/meteor status` | overall anti-ESP status |
+| `/meteor antiesp [status\|toggle\|bypass [player]]` | anti-ESP controls |
+| `/meteor antifreecam` | AntiFreecam status (always on) |
+| `/meteor antifreecam bypass [player]` | toggle bypass for a player |
+| `/meteor antifreecam refresh [player]` | re-check the layer and re-send chunks |
+| `/meteor perf [clear]` | TPS and lag report; `clear` removes old dropped items |
+| `/meteor inspect <player>` | client brand, ping, modded channels, AntiFreecam layer |
+| `/meteor reload` | reload config.yml |
+| `/meteor toggle` | same as `/meteor antiesp toggle` (AntiFreecam stays on) |
+| `/meteor alerts` | toggle your staff alerts |
+| `/meteor attack [on/off]` | force join-attack mode |
+| `/meteor scan <player>` | scan a player's items |
 
-Subcommands:
+## Building
 
-- `reload`
-- `control`
-- `toggle`
-- `status`
-- `bypass`
-- `alerts`
-- `attack`
-- `scan`
-
-Example:
-
-```bash
-/meteor reload
-/meteor control
-/meteor status
-/meteor bypass
 ```
-
-## Permissions
-
-- `antifreecam.admin - this grants you all the /antifreecam commands`
-- `antifreecam.bypass - this bypasses antifreecam`
-- `antiesp.bypass - this bypasses antiesp`
-- `meteorshield.alerts - this shows alerts`
-- `meteorshield.bypass - this bypasses all the protections`
-
-## Main Plugin Details
-
-- Plugin name: `Meteor-Guard`
-- Main class: `com.meteorsmp.antiesp.AntiESPPlugin`
-- API version: `1.21`
-- Version in `plugin.yml`: `3.0.0`
-
-## Configuration Highlights
-
-The plugin supports a wide set of configurable systems, including:
-
-- world enable/disable lists
-- block occlusion and transparent-block rules
-- anti-freecam behavior thresholds
-- join protection limits and attack-mode logic
-- chat, command, and interaction rate limits
-- item checks and banned materials
-- ore watch thresholds
-- alert formatting and logging
-
-The `/meteor control` command opens a live in-game control room. Its buttons toggle
-the protections, container hiding, and join attack mode, reload `config.yml`, and
-show current runtime statistics. Changes made by the protection and container
-hiding buttons are saved back to `config.yml`.
-
-See `src/main/resources/config.yml` for the full default configuration.
-
-## Notes
+gradle build
+```
+The jar is in `build/libs/`.
