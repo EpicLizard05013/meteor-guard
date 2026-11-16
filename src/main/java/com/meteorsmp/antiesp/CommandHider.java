@@ -24,7 +24,7 @@ public final class CommandHider implements Listener {
     private final AntiESPPlugin plugin;
     private final AlertManager alerts;
 
-    private boolean enabled, suggestionsOn, hideNamespaced, blockEnabled, blockNamespaced, alertOnAttempt;
+    private boolean enabled, suggestionsOn, hideNamespaced, blockEnabled, blockNamespaced, alertOnAttempt, hideOwn;
     private String message = "&cUnknown command. Type \"/help\" for help.";
     private final Set<String> hiddenCmds = new HashSet<>();
     private final Set<String> blocked = new HashSet<>();
@@ -38,6 +38,7 @@ public final class CommandHider implements Listener {
         var c = plugin.getConfig();
         String p = "plugin-hider.";
         enabled = c.getBoolean(p + "enabled", true);
+        hideOwn = c.getBoolean(p + "hide-own-commands", true);
         suggestionsOn = c.getBoolean(p + "suggestions.enabled", true);
         hideNamespaced = c.getBoolean(p + "suggestions.hide-namespaced", true);
         hiddenCmds.clear();
@@ -59,26 +60,57 @@ public final class CommandHider implements Listener {
         return p.hasPermission("meteorguard.seecommands");
     }
 
-    /** Should this command name be visible to a normal player? Only listed commands are hidden. */
-    private boolean show(String raw) {
+    private static boolean canUseSuspicious(Player p) {
+        return p.hasPermission("meteorguard.suspicious")
+                || p.hasPermission("meteorguard.admin")
+                || p.hasPermission("antifreecam.admin");
+    }
+
+    private static boolean canUseMeteor(Player p) {
+        return canUseSuspicious(p) || p.hasPermission("meteorshield.alerts");
+    }
+
+    private static boolean isOwnCmd(String base) {
+        return base.equals("meteor") || base.equals("meteorguard") || base.equals("suspicious");
+    }
+
+    private boolean canUseOwn(String base, Player p) {
+        if (base.equals("suspicious")) return canUseSuspicious(p);
+        if (base.equals("meteor") || base.equals("meteorguard")) return canUseMeteor(p);
+        return true;
+    }
+
+    private boolean show(String raw, Player p) {
         String n = norm(raw);
         String base = n.substring(n.lastIndexOf(':') + 1);
+        if (hideOwn && isOwnCmd(base) && !canUseOwn(base, p)) return false;
         if (blocked.contains(n) || blocked.contains(base)) return false;
         if (n.indexOf(':') >= 0 && hideNamespaced) return false;
+        if (isOwnCmd(base) && canUseOwn(base, p)) return true;
         return !hiddenCmds.contains(n) && !hiddenCmds.contains(base);
     }
 
     // 1) the command list the client gets when joining (what the client mod reads)
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onSend(PlayerCommandSendEvent e) {
-        if (!enabled || !suggestionsOn || exempt(e.getPlayer())) return;
-        e.getCommands().removeIf(name -> !show(name));
+        if (!enabled) return;
+        Player p = e.getPlayer();
+        if (exempt(p)) return;
+        if (suggestionsOn) {
+            e.getCommands().removeIf(name -> !show(name, p));
+        } else if (hideOwn) {
+            e.getCommands().removeIf(name -> {
+                String n = norm(name);
+                String base = n.substring(n.lastIndexOf(':') + 1);
+                return isOwnCmd(base) && !canUseOwn(base, p);
+            });
+        }
     }
 
     // 2) tab-complete requests ("/" + letters), answered by us so hidden commands never leak
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onTab(AsyncTabCompleteEvent e) {
-        if (!enabled || !suggestionsOn || !e.isCommand()) return;
+        if (!enabled || !e.isCommand()) return;
         if (!(e.getSender() instanceof Player p) || exempt(p)) return;
 
         String buf = e.getBuffer();
@@ -86,20 +118,25 @@ public final class CommandHider implements Listener {
         String body = slash ? buf.substring(1) : buf;
         int space = body.indexOf(' ');
         if (space >= 0) {
-            // arguments: only shut down hidden commands (/version <plugin>, /plugins ...)
-            if (!show(body.substring(0, space))) {
+            String cmd = body.substring(0, space);
+            String n = norm(cmd);
+            String base = n.substring(n.lastIndexOf(':') + 1);
+            if ((hideOwn && isOwnCmd(base) && !canUseOwn(base, p))
+                    || (suggestionsOn && !show(cmd, p))) {
                 e.setCompletions(List.of());
                 e.setHandled(true);
             }
             return;
         }
 
+        if (!suggestionsOn) return;
+
         String typed = body.toLowerCase(Locale.ROOT);
         List<String> out = new ArrayList<>();
         try {
             for (Map.Entry<String, Command> en : Bukkit.getCommandMap().getKnownCommands().entrySet()) {
                 String name = en.getKey().toLowerCase(Locale.ROOT);
-                if (!name.startsWith(typed) || !show(name)) continue;
+                if (!name.startsWith(typed) || !show(name, p)) continue;
                 String perm = en.getValue().getPermission();
                 if (perm != null && !p.hasPermission(perm)) continue;
                 out.add((slash ? "/" : "") + name);
@@ -112,10 +149,10 @@ public final class CommandHider implements Listener {
         e.setHandled(true);
     }
 
-    // 3) typing the plugin-list commands directly
+    // 3) typing the plugin-list or unpermitted MeteorGuard commands directly
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onCommand(PlayerCommandPreprocessEvent e) {
-        if (!enabled || !blockEnabled) return;
+        if (!enabled) return;
         Player p = e.getPlayer();
         if (exempt(p)) return;
 
@@ -125,6 +162,26 @@ public final class CommandHider implements Listener {
         String label = norm(sp >= 0 ? body.substring(0, sp) : body);
         boolean namespaced = label.indexOf(':') >= 0;
         String base = label.substring(label.lastIndexOf(':') + 1);
+
+        if (hideOwn && isOwnCmd(base)) {
+            if (!canUseOwn(base, p)) {
+                e.setCancelled(true);
+                p.sendMessage(AlertManager.c(message));
+                return;
+            }
+            if ((base.equals("meteor") || base.equals("meteorguard")) && sp >= 0) {
+                String rest = body.substring(sp + 1).trim();
+                int sp2 = rest.indexOf(' ');
+                String sub = (sp2 >= 0 ? rest.substring(0, sp2) : rest).toLowerCase(Locale.ROOT);
+                if (sub.equals("suspicious") && !canUseSuspicious(p)) {
+                    e.setCancelled(true);
+                    p.sendMessage(AlertManager.c(message));
+                    return;
+                }
+            }
+        }
+
+        if (!blockEnabled) return;
 
         if (blocked.contains(label) || blocked.contains(base) || (blockNamespaced && namespaced)) {
             e.setCancelled(true);
