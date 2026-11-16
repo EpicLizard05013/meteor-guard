@@ -35,8 +35,13 @@ public final class AlertManager {
     private volatile long cooldownMs = 10_000L;
     private volatile String format = "&8[&bShield&8] &f{player} &7- &c{check} &8(&7{details}&8)";
 
+    private final DiscordWebhook webhook;
+    private final Punisher punisher;
+
     public AlertManager(AntiESPPlugin plugin) {
         this.plugin = plugin;
+        this.webhook = new DiscordWebhook(plugin);
+        this.punisher = new Punisher(plugin);
     }
 
     public void reload() {
@@ -46,6 +51,8 @@ public final class AlertManager {
         console = cfg.getBoolean("alerts.console", true);
         cooldownMs = Math.max(0, cfg.getInt("alerts.cooldown-seconds", 10)) * 1000L;
         format = cfg.getString("alerts.format", format);
+        webhook.reload();
+        punisher.reload();
     }
 
     /** @return true if the player now RECEIVES alerts, false if muted */
@@ -85,6 +92,8 @@ public final class AlertManager {
                 }
             }
             if (console) plugin.getLogger().info("[ALERT] " + plain);
+            webhook.send("**" + check + "** | " + player + " | " + details);
+            punisher.record(check, player);
         };
         
         if (Bukkit.isPrimaryThread()) {
