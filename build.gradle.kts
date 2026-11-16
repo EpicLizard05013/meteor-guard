@@ -15,11 +15,15 @@ java {
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://repo.codemc.io/repository/maven-releases/")
+    maven("https://repo.codemc.io/repository/maven-snapshots/")
     maven("https://repo.grim.ac/snapshots")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("com.github.retrooper:packetevents-spigot:2.14.0")
+    compileOnly("ac.grim.grimac:GrimAPI:1.3.2.1")
     implementation("org.bstats:bstats-bukkit:3.1.0")
 }
 
@@ -28,7 +32,6 @@ tasks.processResources {
     filesMatching("plugin.yml") {
         expand("version" to project.version)
     }
-    // Package Claude's root data/ yml templates into the compiled jar
     from("data") {
         into("data")
     }
