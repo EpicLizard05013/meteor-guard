@@ -39,7 +39,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * MeteorAntiESP: hides players behind walls, hides far-away containers (BlockHider),
+ * MeteorGuard: AntiFreecam (always on), hides players behind walls, hides far-away containers (BlockHider),
  * bot/join protection, rate limits, illegal item checks, ore alerts and one staff alert system.
  * Needs Paper 1.19.3 or newer.
  */
@@ -61,6 +61,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private AntiAutoclicker autoclicker;
     private AutoPlaceBlockListener buildMacro;
     private DepthMask depthMask;
+    private EntityShield entityShield;
+    private LagGuard lagGuard;
+    private PacketRateLimiter packetLimiter;
+    private ClientBrandCheck brandCheck;
     private boolean keepTablist;
     private int tickCounter = 0;
     private boolean enabled = true;
@@ -101,9 +105,21 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         tabKeeper = new TabListKeeper(getLogger());
         autoclicker = new AntiAutoclicker(this);
         buildMacro = new AutoPlaceBlockListener(this);
+        brandCheck = new ClientBrandCheck(this, alerts);
 
         loadSettings();
         startDepthMask();
+        entityShield = new EntityShield(this, depthMask);
+        entityShield.start();
+        lagGuard = new LagGuard(this);
+        lagGuard.start();
+        try {
+            packetLimiter = new PacketRateLimiter(this, alerts);
+            packetLimiter.start();
+        } catch (Throwable t) {
+            getLogger().warning("Packet limiter could not start: " + t);
+            packetLimiter = null;
+        }
 
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getPluginManager().registerEvents(joinProtection, this);
@@ -111,16 +127,17 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(itemSanity, this);
         getServer().getPluginManager().registerEvents(oreWatch, this);
         getServer().getPluginManager().registerEvents(commandHider, this);
+        getServer().getPluginManager().registerEvents(brandCheck, this);
 
         blockHider = new BlockHider(this);
         blockHider.start();
 
-        PluginCommand cmd = getCommand("meteorguard");
+        PluginCommand cmd = getCommand("meteor");
         if (cmd != null) {
             cmd.setExecutor(this);
             cmd.setTabCompleter(this);
         } else {
-            getLogger().severe("Command 'meteorguard' is missing from plugin.yml!");
+            getLogger().severe("Command 'meteor' is missing from plugin.yml!");
         }
 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
@@ -128,23 +145,22 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getLogger().info(color(getConfig().getString("messages.plugin-enabled", "&aMeteorGuard has been enabled!")));
     }
 
+    /** AntiFreecam has no on/off switch: it always starts (PacketEvents is a hard dependency). */
     private void startDepthMask() {
-        if (!getConfig().getBoolean("depth-mask.enabled", false)) return;
-        if (Bukkit.getPluginManager().getPlugin("packetevents") == null) {
-            getLogger().warning("depth-mask is enabled but the PacketEvents plugin is not installed - skipping.");
-            return;
-        }
         try {
             depthMask = new DepthMask(this);
             depthMask.start();
         } catch (Throwable t) {
-            getLogger().warning("depth-mask could not start: " + t);
+            getLogger().severe("AntiFreecam FAILED to start - is the PacketEvents plugin installed? " + t);
             depthMask = null;
         }
     }
 
     @Override
     public void onDisable() {
+        if (packetLimiter != null) packetLimiter.stop();
+        if (lagGuard != null) lagGuard.stop();
+        if (entityShield != null) entityShield.stop();
         if (depthMask != null) depthMask.stop();
         if (blockHider != null) blockHider.stop();
         if (joinProtection != null) joinProtection.shutdown();
@@ -184,6 +200,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (autoclicker != null) autoclicker.reload();
         if (buildMacro != null) buildMacro.reload();
         if (depthMask != null) depthMask.reload();
+        if (brandCheck != null) brandCheck.reload();
+        if (entityShield != null) entityShield.reload();
+        if (lagGuard != null) lagGuard.reload();
+        if (packetLimiter != null) packetLimiter.reload();
     }
 
     private void loadMaterials(String path, Set<Material> out) {
@@ -239,6 +259,11 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 List.of("&7Online: &f" + Bukkit.getOnlinePlayers().size(),
                         "&7Worlds: &f" + Bukkit.getWorlds().size(),
                         "&7Alerts: &f" + (alerts != null ? "ready" : "unavailable"))));
+        holder.inventory.setItem(20, controlItem(depthMask != null ? Material.ENDER_EYE : Material.BARRIER,
+                depthMask != null ? "&aAntiFreecam: ALWAYS ON" : "&cAntiFreecam: NOT RUNNING",
+                List.of("&7Cave / surface masking cannot be switched off.",
+                        "&fEntities hidden: &b" + (entityShield != null ? entityShield.hiddenCount() : 0),
+                        "&7Details: &f/meteor antifreecam")));
         player.openInventory(holder.inventory);
         player.sendMessage(msg("control-opened", "&aControl room opened."));
     }
@@ -249,6 +274,144 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     public boolean isActive() {
         return enabled;
+    }
+
+    /** 0 = normal, 1 = busy, 2 = overloaded (set by LagGuard from the server TPS). */
+    int lagLevel() {
+        return lagGuard == null ? 0 : lagGuard.level();
+    }
+
+    boolean isEspWorld(World world) {
+        return enabledWorlds.isEmpty() || enabledWorlds.contains(world.getName());
+    }
+
+    /** True if solid blocks hide a small target (item, frame, minecart) from the eye. */
+    boolean losBlocked(Location eye, Location t) {
+        World w = eye.getWorld();
+        double ex = eye.getX(), ey = eye.getY(), ez = eye.getZ();
+        return isLineBlocked(w, ex, ey, ez, t.getX(), t.getY() + 0.1, t.getZ())
+                && isLineBlocked(w, ex, ey, ez, t.getX(), t.getY() + 0.45, t.getZ());
+    }
+
+    private boolean toggleBypass(CommandSender sender, String name) {
+        Player target = (sender instanceof Player) ? (Player) sender : null;
+        if (name != null) target = Bukkit.getPlayer(name);
+        if (target == null) {
+            sender.sendMessage(ChatColor.RED + "Player not found or specify a player name!");
+            return true;
+        }
+        UUID id = target.getUniqueId();
+        if (bypass.remove(id)) {
+            target.sendMessage(msg("bypass-disabled", "&cBypass disabled."));
+        } else {
+            bypass.add(id);
+            revealAll(target);
+            if (blockHider != null) blockHider.revealAll(target);
+            target.sendMessage(msg("bypass-enabled", "&aBypass enabled."));
+        }
+        return true;
+    }
+
+    /** /meteor inspect <player> - quick look at what a client is doing. */
+    private boolean inspectCommand(CommandSender sender, String label, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " inspect <player>");
+            return true;
+        }
+        Player t = Bukkit.getPlayer(args[1]);
+        if (t == null) {
+            sender.sendMessage(ChatColor.RED + "Player not found!");
+            return true;
+        }
+        String brand = t.getClientBrandName();
+        List<String> modded = new ArrayList<>();
+        for (String ch : t.getListeningPluginChannels()) {
+            String lc = ch.toLowerCase(Locale.ROOT);
+            if (lc.startsWith("fabric") || lc.startsWith("fml:") || lc.startsWith("forge")
+                    || lc.startsWith("neoforge") || lc.startsWith("quilt")) {
+                modded.add(ch);
+            }
+        }
+        Location l = t.getLocation();
+        sender.sendMessage(color("&6=== " + t.getName() + " ==="));
+        sender.sendMessage(color("&7Client brand: &f" + (brand == null ? "unknown" : brand)
+                + " &7| ping: &f" + t.getPing() + "ms &7| mode: &f" + t.getGameMode().name()));
+        sender.sendMessage(color("&7Position: &f" + l.getWorld().getName() + " "
+                + l.getBlockX() + ", " + l.getBlockY() + ", " + l.getBlockZ()));
+        sender.sendMessage(color("&7Modded channels: &f"
+                + (modded.isEmpty() ? "none" : String.join(", ", modded.subList(0, Math.min(5, modded.size()))))));
+        sender.sendMessage(color("&7AntiFreecam layer: &f" + (depthMask != null ? depthMask.describe(t) : "not running")
+                + " &7| bypass: &f" + hasBypass(t)));
+        return true;
+    }
+
+    private boolean espToggle(CommandSender sender) {
+        enabled = !enabled;
+        getConfig().set("enabled", enabled);
+        saveConfig();
+        if (!enabled) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                revealAll(p);
+                if (blockHider != null) blockHider.revealAll(p);
+            }
+        }
+        sender.sendMessage(msg(enabled ? "protection-enabled" : "protection-disabled",
+                enabled ? "&aProtections enabled." : "&cProtections disabled."));
+        return true;
+    }
+
+    private boolean espStatus(CommandSender sender) {
+        int pairs = 0;
+        for (Set<UUID> set : hidden.values()) pairs += set.size();
+        sender.sendMessage(color("&eAntiESP: " + (enabled ? "&aON" : "&cOFF")
+                + " &7| hidden pairs: &f" + pairs
+                + " &7| range: &f" + minDist + "-" + maxDist
+                + " &7| thorough: &f" + thorough
+                + " &7| attack mode: " + (joinProtection.attackActive() ? "&cACTIVE" : "&aoff")));
+        return true;
+    }
+
+    /** /meteor antiesp [status|toggle|bypass [player]] */
+    private boolean antiEspCommand(CommandSender sender, String label, String[] args) {
+        String mode = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "status";
+        if (mode.equals("toggle")) return espToggle(sender);
+        if (mode.equals("bypass")) return toggleBypass(sender, args.length > 2 ? args[2] : null);
+        if (mode.equals("status")) return espStatus(sender);
+        sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " antiesp [status|toggle|bypass [player]]");
+        return true;
+    }
+
+    private boolean antiFreecamCommand(CommandSender sender, String label, String[] args) {
+        String mode = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "status";
+        if (mode.equals("bypass")) {
+            return toggleBypass(sender, args.length > 2 ? args[2] : null);
+        }
+        if (mode.equals("refresh")) {
+            Player target = (sender instanceof Player) ? (Player) sender : null;
+            if (args.length > 2) target = Bukkit.getPlayer(args[2]);
+            if (target == null) {
+                sender.sendMessage(ChatColor.RED + "Player not found or specify a player name!");
+                return true;
+            }
+            if (depthMask != null) depthMask.refresh(target);
+            sender.sendMessage(color("&aRe-checking the layer and re-sending chunks for &f" + target.getName() + "&a."));
+            return true;
+        }
+        sender.sendMessage(color("&6=== AntiFreecam &a(always on) &6==="));
+        if (depthMask == null) {
+            sender.sendMessage(color("&cNot running! Is the PacketEvents plugin installed? Check the console."));
+            return true;
+        }
+        if (sender instanceof Player p) {
+            sender.sendMessage(color("&7Your layer: &f" + depthMask.describe(p)));
+        }
+        sender.sendMessage(color("&7Players tracked: &f" + depthMask.trackedPlayers()
+                + " &7| chunks masked: &f" + depthMask.chunksMasked()
+                + " &7| block updates blocked: &f" + depthMask.blockUpdatesBlocked()));
+        sender.sendMessage(color("&7Entities hidden: &f" + (entityShield != null ? entityShield.hiddenCount() : 0)));
+        sender.sendMessage(color("&7" + depthMask.summary()));
+        sender.sendMessage(color("&8/" + label + " antifreecam bypass [player]  |  /" + label + " antifreecam refresh [player]"));
+        return true;
     }
 
     public boolean hasBypass(Player p) {
@@ -262,12 +425,12 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
         if (queue.isEmpty()) {
             tickCounter++;
-            if (tickCounter < checkInterval) return;
+            if (tickCounter < checkInterval * (lagGuard == null ? 1 : lagGuard.multiplier())) return;
             tickCounter = 0;
             for (Player p : Bukkit.getOnlinePlayers()) queue.add(p.getUniqueId());
         }
 
-        int budget = maxPairsPerTick;
+        int budget = Math.max(10, maxPairsPerTick / (lagGuard == null ? 1 : lagGuard.multiplier()));
         while (!queue.isEmpty() && budget > 0) {
             Player observer = Bukkit.getPlayer(queue.poll());
             if (observer == null || !observer.isOnline()) continue;
@@ -488,6 +651,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             sender.sendMessage(color("&6=== MeteorGuard Commands ==="));
             sender.sendMessage(color("&e/" + label + " control &7- Open the live control room"));
             sender.sendMessage(color("&e/" + label + " status &7- Show live protection status"));
+            sender.sendMessage(color("&e/" + label + " antiesp &7- AntiESP status | toggle | bypass [player]"));
+            sender.sendMessage(color("&e/" + label + " perf &7- TPS, lag protection, clear dropped items"));
+            sender.sendMessage(color("&e/" + label + " inspect <player> &7- client brand, ping, modded channels, layer"));
+            sender.sendMessage(color("&e/" + label + " antifreecam &7- AntiFreecam status (always on) | bypass | refresh"));
             sender.sendMessage(color("&e/" + label + " reload &7- Reload config.yml"));
             sender.sendMessage(color("&e/" + label + " toggle &7- Enable or disable protections"));
             return true;
@@ -513,37 +680,13 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 return true;
 
             case "toggle":
-                enabled = !enabled;
-                getConfig().set("enabled", enabled);
-                saveConfig();
-                if (!enabled) {
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        revealAll(p);
-                        if (blockHider != null) blockHider.revealAll(p);
-                    }
-                }
-                sender.sendMessage(msg(enabled ? "protection-enabled" : "protection-disabled",
-                        enabled ? "&aProtections enabled." : "&cProtections disabled."));
-                return true;
+                return espToggle(sender);
 
-            case "bypass": {
-                Player target = (sender instanceof Player) ? (Player) sender : null;
-                if (args.length > 1) target = Bukkit.getPlayer(args[1]);
-                if (target == null) {
-                    sender.sendMessage(ChatColor.RED + "Player not found or specify a player name!");
-                    return true;
-                }
-                UUID id = target.getUniqueId();
-                if (bypass.remove(id)) {
-                    target.sendMessage(msg("bypass-disabled", "&cBypass disabled."));
-                } else {
-                    bypass.add(id);
-                    revealAll(target);
-                    if (blockHider != null) blockHider.revealAll(target);
-                    target.sendMessage(msg("bypass-enabled", "&aBypass enabled."));
-                }
-                return true;
-            }
+            case "bypass":
+                return toggleBypass(sender, args.length > 1 ? args[1] : null);
+
+            case "antifreecam":
+                return antiFreecamCommand(sender, label, args);
 
             case "alerts": {
                 if (!(sender instanceof Player)) {
@@ -565,7 +708,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
             case "scan": {
                 if (args.length < 2) {
-                    sender.sendMessage(ChatColor.YELLOW + "Usage: /antifreecam scan <player>");
+                    sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " scan <player>");
                     return true;
                 }
                 Player target = Bukkit.getPlayer(args[1]);
@@ -578,19 +721,20 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 return true;
             }
 
-            case "status": {
-                int pairs = 0;
-                for (Set<UUID> s : hidden.values()) pairs += s.size();
-                sender.sendMessage(color("&eAntiESP: " + (enabled ? "&aON" : "&cOFF")
-                        + " &7| hidden pairs: &f" + pairs
-                        + " &7| range: &f" + minDist + "-" + maxDist
-                        + " &7| thorough: &f" + thorough
-                        + " &7| attack mode: " + (joinProtection.attackActive() ? "&cACTIVE" : "&aoff")));
-                return true;
-            }
+            case "status":
+                return espStatus(sender);
+
+            case "antiesp":
+                return antiEspCommand(sender, label, args);
+
+            case "perf":
+                return lagGuard == null ? true : lagGuard.command(sender, label, args);
+
+            case "inspect":
+                return inspectCommand(sender, label, args);
 
             default:
-                sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|bypass [player]|alerts|attack [on|off]|scan <player>>");
+                sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|antiesp|antifreecam|perf|inspect <player>|bypass [player]|alerts|attack [on|off]|scan <player>>");
                 return true;
         }
     }
@@ -599,14 +743,33 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            for (String s : new String[]{"help", "control", "reload", "toggle", "status", "bypass", "alerts", "attack", "scan"}) {
+            for (String s : new String[]{"help", "control", "reload", "toggle", "status", "antiesp", "antifreecam", "perf", "inspect", "bypass", "alerts", "attack", "scan"}) {
                 if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
             }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("attack")) {
             for (String s : new String[]{"on", "off", "status"}) {
                 if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
             }
-        } else if (args.length == 2 && (args[0].equalsIgnoreCase("bypass") || args[0].equalsIgnoreCase("scan"))) {
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("perf")) {
+            if ("clear".startsWith(args[1].toLowerCase(Locale.ROOT))) out.add("clear");
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("antiesp")) {
+            for (String s : new String[]{"status", "toggle", "bypass"}) {
+                if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
+            }
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("antiesp") && args[1].equalsIgnoreCase("bypass")) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getName().toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))) out.add(p.getName());
+            }
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("antifreecam")) {
+            for (String s : new String[]{"status", "bypass", "refresh"}) {
+                if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
+            }
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("antifreecam")
+                && (args[1].equalsIgnoreCase("bypass") || args[1].equalsIgnoreCase("refresh"))) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getName().toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))) out.add(p.getName());
+            }
+        } else if (args.length == 2 && (args[0].equalsIgnoreCase("bypass") || args[0].equalsIgnoreCase("scan") || args[0].equalsIgnoreCase("inspect"))) {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.getName().toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(p.getName());
             }
