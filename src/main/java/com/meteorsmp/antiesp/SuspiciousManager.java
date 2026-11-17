@@ -26,6 +26,7 @@ public final class SuspiciousManager {
         public int flags;
         public int totalOres;
         public int totalBase;
+        public int hiddenOres;
         public final Map<String, Integer> oreBreakdown = new LinkedHashMap<>();
         public String lastReason;
         public String lastWorld;
@@ -66,6 +67,7 @@ public final class SuspiciousManager {
                 entry.flags = sec.getInt("flags", 1);
                 entry.totalOres = sec.getInt("total-ores", 0);
                 entry.totalBase = sec.getInt("total-base", 0);
+                entry.hiddenOres = sec.getInt("hidden-ores", 0);
                 entry.lastReason = sec.getString("last-reason", "");
                 entry.lastWorld = sec.getString("last-world", "world");
                 entry.lastX = sec.getInt("last-x", 0);
@@ -84,6 +86,12 @@ public final class SuspiciousManager {
             } catch (IllegalArgumentException ignored) {
             }
         }
+        // housekeeping: forget players who were not flagged again for a long time
+        int days = plugin.getConfig().getInt("suspicious.expire-days", 30);
+        if (days > 0) {
+            long cutoff = System.currentTimeMillis() - days * 86_400_000L;
+            if (entries.values().removeIf(en -> en.lastFlagged > 0 && en.lastFlagged < cutoff)) save();
+        }
     }
 
     public void save() {
@@ -98,6 +106,7 @@ public final class SuspiciousManager {
             yml.set(path + "flags", e.flags);
             yml.set(path + "total-ores", e.totalOres);
             yml.set(path + "total-base", e.totalBase);
+            yml.set(path + "hidden-ores", e.hiddenOres);
             yml.set(path + "last-reason", e.lastReason);
             yml.set(path + "last-world", e.lastWorld);
             yml.set(path + "last-x", e.lastX);
@@ -117,6 +126,11 @@ public final class SuspiciousManager {
     }
 
     public void record(Player player, String reason, int ores, int base, Map<Material, Integer> sessionOres, Location loc) {
+        record(player, reason, ores, base, sessionOres, loc, 0);
+    }
+
+    public void record(Player player, String reason, int ores, int base, Map<Material, Integer> sessionOres,
+                       Location loc, int hiddenOres) {
         long now = System.currentTimeMillis();
         SuspiciousEntry entry = entries.computeIfAbsent(player.getUniqueId(), k -> {
             SuspiciousEntry created = new SuspiciousEntry(k, player.getName());
@@ -128,6 +142,7 @@ public final class SuspiciousManager {
         entry.flags++;
         entry.totalOres = Math.max(entry.totalOres, ores);
         entry.totalBase = Math.max(entry.totalBase, base);
+        entry.hiddenOres = Math.max(entry.hiddenOres, hiddenOres);
         entry.lastReason = reason;
         entry.lastFlagged = now;
         if (loc != null && loc.getWorld() != null) {
@@ -144,9 +159,38 @@ public final class SuspiciousManager {
     }
 
     public List<SuspiciousEntry> getEntriesSorted() {
+        return getEntriesSorted(0);
+    }
+
+    /** mode: 0 = most recent, 1 = most flags, 2 = most rare ores, 3 = highest severity. */
+    public List<SuspiciousEntry> getEntriesSorted(int mode) {
         List<SuspiciousEntry> list = new ArrayList<>(entries.values());
-        list.sort(Comparator.comparingLong((SuspiciousEntry e) -> e.lastFlagged).reversed());
+        if (mode == 1) list.sort(Comparator.comparingInt((SuspiciousEntry e) -> e.flags).reversed());
+        else if (mode == 2) list.sort(Comparator.comparingInt((SuspiciousEntry e) -> e.totalOres).reversed());
+        else if (mode == 3) list.sort(Comparator.comparingInt((SuspiciousEntry e) -> score(e)).reversed());
+        else list.sort(Comparator.comparingLong((SuspiciousEntry e) -> e.lastFlagged).reversed());
         return list;
+    }
+
+    /** Simple severity score: repeated flags, many rare ores and ores found inside solid rock all raise it. */
+    public static int score(SuspiciousEntry e) {
+        return e.flags * 2 + e.totalOres / 5 + e.hiddenOres * 3;
+    }
+
+    public static String level(int score) {
+        if (score >= 25) return "HIGH";
+        if (score >= 10) return "MEDIUM";
+        return "LOW";
+    }
+
+    public boolean removeByName(String name) {
+        for (SuspiciousEntry e : new ArrayList<>(entries.values())) {
+            if (e.name != null && e.name.equalsIgnoreCase(name)) {
+                remove(e.uuid);
+                return true;
+            }
+        }
+        return false;
     }
 
     public SuspiciousEntry getEntry(UUID uuid) {
