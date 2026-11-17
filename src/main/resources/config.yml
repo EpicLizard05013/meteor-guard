@@ -7,11 +7,11 @@ debug: false
 
 # ---------------- Player hiding (anti-ESP, line of sight) ----------------
 enabled-worlds: []          # [] = all worlds
-check-interval: 2           # ticks between full passes
-max-pairs-per-tick: 300     # performance budget: observer/target pairs checked per tick
-max-distance: 128.0         # players further than this are never hidden
-min-distance: 6.0           # players closer than this are never hidden
-thorough-check: false       # true = also test the four corners (fewer pop-ins, more CPU)
+check-interval: 1           # check every tick so ESP boxes cannot flicker
+max-pairs-per-tick: 1000    # high budget so player pairs are never skipped
+max-distance: 160.0         # hide occluded players up to 10 chunks away
+min-distance: 3.0           # hide players behind walls even at close range
+thorough-check: true        # test all bounding-box corners to stop wall-peeking
 ignore-spectators: true
 keep-tablist: true          # hidden players stay in the tab list
 
@@ -19,18 +19,25 @@ team-exemption:
   enabled: true             # players in the same scoreboard team never hide from each other
 
 occlusion:
-  always-occlude: []        # extra blocks that always block line of sight
-  never-occlude:            # blocks you can see through
+  always-occlude:           # extra blocks that always block line of sight
+    - TINTED_GLASS
+    - HONEY_BLOCK
+    - SLIME_BLOCK
+  never-occlude:            # blocks you can see through (1.21.11 material names)
     - GLASS
     - GLASS_PANE
     - IRON_BARS
-    - CHAIN
+    - IRON_CHAIN
     - LADDER
     - VINE
     - TORCH
     - WALL_TORCH
     - REDSTONE_TORCH
     - REDSTONE_WALL_TORCH
+    - SOUL_TORCH
+    - SOUL_WALL_TORCH
+    - LANTERN
+    - SOUL_LANTERN
     - TRIPWIRE
     - TRIPWIRE_HOOK
     - COBWEB
@@ -38,15 +45,18 @@ occlusion:
     - BARRIER
     - STRUCTURE_VOID
     - LIGHT
+    - END_ROD
+    - LIGHTNING_ROD
+    - POINTED_DRIPSTONE
 
 # ---------------- Chest / spawner / container hiding ----------------
 block-hiding:
   enabled: true
-  reveal-distance: 16.0     # containers closer than this are shown
-  scan-radius-chunks: 8
-  check-interval: 10
-  resend-every-passes: 10
-  fake-block: AIR           # what far containers look like to the client
+  reveal-distance: 10.0     # containers stay hidden until within 10 blocks
+  scan-radius-chunks: 10    # covers full render distance
+  check-interval: 5         # faster updates when approaching stashes
+  resend-every-passes: 5    # stops clients from caching unmasked chunks
+  fake-block: STONE         # STONE hides underground stashes instead of leaving air pockets
   hide-shulkers: true
   blocks:
     - CHEST
@@ -64,16 +74,31 @@ block-hiding:
     - DROPPER
     - BREWING_STAND
     - BEACON
+    - CRAFTER
+    - DECORATED_POT
+    - SUSPICIOUS_SAND
+    - SUSPICIOUS_GRAVEL
+    - CHISELED_BOOKSHELF
+    - LECTERN
+    - ENCHANTING_TABLE
+    - ANVIL
+    - CHIPPED_ANVIL
+    - DAMAGED_ANVIL
+    - RESPAWN_ANCHOR
+    - LODESTONE
+    - OBSIDIAN
+    - CRYING_OBSIDIAN
+    - TNT
 
 # ---------------- Anti plugin-scan (Meteor Client & similar) ----------------
 plugin-hider:
   enabled: true
   alert-on-attempt: true    # staff alert PLUGIN-SCAN when someone tries a blocked command
-  hide-own-commands: true   # /meteor, /meteorguard, and /suspicious look like unknown commands to players without the required rank/permission
+  hide-own-commands: true   # /meteor, /meteorguard, and /suspicious look like unknown commands without rank permission
   suggestions:
     enabled: true           # hide the commands below from the client's command list + tab-complete
-    hide-namespaced: true   # hides essentials:ban, minecraft:give ... (new commands you make are NOT hidden)
-    hidden-commands:        # only these are hidden (they still WORK, just not suggested)
+    hide-namespaced: true   # hides essentials:ban, minecraft:give, etc.
+    hidden-commands:        # hidden from tab-complete
       - lp
       - luckperms
       - tab
@@ -85,9 +110,14 @@ plugin-hider:
       - geyser
       - viaversion
       - viaver
+      - viabackwards
+      - viarewind
+      - packetevents
+      - protocollib
       - papi
       - placeholderapi
       - plugman
+      - plugmanx
       - spark
       - timings
       - paper
@@ -96,6 +126,17 @@ plugin-hider:
       - bukkit
       - worldedit
       - we
+      - fawe
+      - worldguard
+      - wg
+      - essentials
+      - ess
+      - coreprotect
+      - co
+      - matrix
+      - vulcan
+      - intave
+      - polar
       - meteorguard
       - meteor
       - suspicious
@@ -110,6 +151,21 @@ plugin-hider:
       - about
       - icanhasbukkit
       - "?"
+      - help
+      - seed
+      - tps
+      - mspt
+      - spark
+      - timings
+      - paper
+      - purpur
+      - spigot
+      - bukkit
+      - packetevents
+      - grim
+      - grimac
+      - lp
+      - luckperms
     message: '&cUnknown command. Type "/help" for help.'
   # players with the permission meteorguard.seecommands (ops by default) see everything
 
@@ -117,7 +173,7 @@ plugin-hider:
 alerts:
   enabled: true
   format: "&8[&bShield&8] &f{player} &7- &c{check} &8(&7{details}&8)"
-  cooldown-seconds: 10      # same player + same check is shown/logged at most once per this time
+  cooldown-seconds: 3       # fast alert frequency for active cheat testing
   log-to-file: true         # plugins/MeteorGuard/data/alerts/YYYY-MM-DD.log
   console: true
 
@@ -130,25 +186,26 @@ join-protection:
     - "0:0:0:0:0:0:0:1"
   ip-limits:
     enabled: true
-    max-joins: 4            # login attempts from one IP...
+    max-joins: 3            # login attempts from one IP...
     window-seconds: 30      # ...within this time
-    max-accounts-per-ip: 3  # accounts online at once from one IP
+    max-accounts-per-ip: 2  # max 2 accounts online per IP
     message: "&cToo many connections from your IP. Please wait a moment and try again."
   name-filter:
     enabled: true
     blocked-regex:
-      - "(?i)^(bot|mcbot|botattack|nuke|crash)[_-]?\\d*$"
+      - "(?i)^(bot|mcbot|botattack|nuke|crash|meteor|wurst|baritone|aristois|liquid|client|alt|testbot|spam)[_-]?\\d*$"
+      - "(?i)^.*(hack|cheat|xray|killaura|grief).*$"
     message: "&cThat username is not allowed."
   attack-mode:
     enabled: true
-    joins-threshold: 12     # this many login attempts...
-    window-seconds: 10      # ...within this time starts attack mode
-    duration-seconds: 120   # stays on this long (extended while the attack continues)
-    block-new-players: false  # true = accounts that never joined before are refused during an attack
+    joins-threshold: 8      # triggers faster during bot floods
+    window-seconds: 10
+    duration-seconds: 180
+    block-new-players: true # blocks fresh accounts during an active bot flood
     message: "&cThe server is under a join attack. New players can't join right now, try again in a few minutes."
   verification:
     mode: attack            # off | attack (untrusted players during an attack) | always
-    timeout-seconds: 20
+    timeout-seconds: 15
     trusted-playtime-minutes: 30
     title: "&8Click the &aLIME &8pane to verify"
 
@@ -156,58 +213,73 @@ join-protection:
 rate-limits:
   enabled: true
   chat:
-    max-messages: 5
-    window-seconds: 4
+    max-messages: 4
+    window-seconds: 5
     block-repeats: true
     message: "&cSlow down, you're sending messages too fast."
   commands:
-    max-commands: 8
+    max-commands: 5
     window-seconds: 4
-    max-length: 256
+    max-length: 160
   inventory-clicks:
-    max-clicks: 60
+    max-clicks: 35          # catches fast auto-totem / chest-stealer clicks
     window-seconds: 1
   interactions:             # alert only, never cancels
-    max: 40
+    max: 25
     window-seconds: 1
 
 # ---------------- AntiFreecam (cave / surface masking) ----------------
 # ALWAYS ON - there is no enabled switch. Needs the PacketEvents plugin.
-# Surface players only get deepslate where the deep caves are; players underground only get stone where
-# the surface is. A freecam / xray client can't look through the world to find bases or caves.
 antifreecam:
   worlds: []                # [] = every overworld-type world (never nether / end)
-  switch-down-y: 20         # player below this Y = underground mode
-  switch-up-y: 50           # player above this Y = surface mode again
+  switch-down-y: 12         # switches to underground mode when digging near Y=0
+  switch-up-y: 24           # switches back to surface masking above Y=24
   surface-mode:
-    mask-below-y: -8        # at the surface, everything below this Y shows as deepslate
+    mask-below-y: 5         # masks the entire deepslate layer (Y=-1 to -64) from the surface
   underground-mode:
-    mask-above-y: 64        # underground, everything above this Y shows as stone
-  resend-cooldown-seconds: 5
-  hide-entities: true       # mobs / items / armor stands inside the masked area are hidden too (players: see anti-ESP)
+    mask-above-y: 56        # masks surface bases & terrain above Y=56 while underground
+  resend-cooldown-seconds: 2
+  hide-entities: true       # hides mobs / items / armor stands inside the masked area
 
 # ---------------- Stash-entity hiding (item ESP, frame ESP, chest minecarts) ----------------
 entity-hiding:
   enabled: true
-  types:                    # entity types hidden when walls are between them and the player
+  types:                    # 1.21.11 entity types hidden behind walls
     - ITEM
     - ITEM_FRAME
     - GLOW_ITEM_FRAME
     - CHEST_MINECART
     - HOPPER_MINECART
+    - FURNACE_MINECART
+    - TNT_MINECART
+    - SPAWNER_MINECART
     - ARMOR_STAND
-  range: 64.0               # only entities within this distance are checked
-  min-distance: 10.0        # closer than this is never hidden
-  check-interval: 10        # ticks between passes
-  max-entities-per-player: 400   # performance cap
+    - END_CRYSTAL
+    - OAK_CHEST_BOAT
+    - SPRUCE_CHEST_BOAT
+    - BIRCH_CHEST_BOAT
+    - JUNGLE_CHEST_BOAT
+    - ACACIA_CHEST_BOAT
+    - DARK_OAK_CHEST_BOAT
+    - MANGROVE_CHEST_BOAT
+    - CHERRY_CHEST_BOAT
+    - PALE_OAK_CHEST_BOAT
+    - BAMBOO_CHEST_RAFT
+    - VILLAGER
+    - ZOMBIE_VILLAGER
+    - ALLAY
+  range: 96.0               # hides stash entities out to 96 blocks
+  min-distance: 5.0         # hides entities behind walls even 5 blocks away
+  check-interval: 4         # checks every 4 ticks
+  max-entities-per-player: 800
 
 # ---------------- Client checks ----------------
 client-checks:
   brand:
     enabled: true
-    check-delay-ticks: 60   # the client sends its brand a moment after joining
-    action: alert           # alert | kick  (for blocked brands)
-    kick-message: "&cThat client is not allowed on this server."
+    check-delay-ticks: 40   # checks 2 seconds after join
+    action: kick            # immediately kicks detected cheat client brands
+    kick-message: "&cUnapproved client modification detected."
     blocked-brands:         # matched anywhere inside the brand text, case-insensitive
       - meteor
       - wurst
@@ -217,15 +289,40 @@ client-checks:
       - liquidbounce
       - salhack
       - huzuni
-    detect-spoof: true      # brand says "vanilla" but the client registered Fabric / Forge channels
-    alert-non-vanilla: false  # also alert for every modded client (noisy)
+      - future
+      - impact
+      - bleachhack
+      - lambda
+      - inertia
+      - sigma
+      - doomsday
+      - baritone
+      - xray
+      - kami
+      - phobos
+      - gamesense
+      - abyss
+      - konas
+      - pyro
+      - vape
+      -novoline
+      - moon
+      - exhibition
+      - zeroday
+      - boze
+      - mio
+      - shoreline
+      - catlean
+      - alien
+    detect-spoof: true      # catches clients claiming "vanilla" while sending Fabric/Forge channels
+    alert-non-vanilla: true # logs/alerts staff on any modded client brand
 
 # ---------------- Lag protection ----------------
 lag-protection:
-  auto-throttle:            # when the server lags, MeteorGuard does fewer checks so it never makes lag worse
+  auto-throttle:            # keep protections active even under heavy load
     enabled: true
-    busy-tps: 18.0          # below this: half as many checks
-    overloaded-tps: 15.0    # below this: a quarter, and entity hiding pauses
-  entity-limit:             # stops mob farms / spawners from lagging the server
-    enabled: false
-    max-same-type-per-chunk: 30
+    busy-tps: 16.0
+    overloaded-tps: 12.0
+  entity-limit:
+    enabled: true
+    max-same-type-per-chunk: 25
