@@ -9,12 +9,19 @@ description: AntiFreecam (always on), anti-ESP, container hiding, join protectio
 commands:
   meteor:
     description: Main administrative command for MeteorGuard
-    usage: /<command> [help|control|status|antiesp|antifreecam|perf|inspect|reload|toggle|bypass|alerts|attack|scan]
+    usage: /<command> [help|control|status|antiesp|antifreecam|perf|inspect|suspicious|reload|toggle|bypass|alerts|attack|scan]
     aliases: [meteorguard]
+  suspicious:
+    description: Open the suspicious players ore log GUI
+    usage: /<command>
+    permission: meteorguard.suspicious
 
 permissions:
   meteorguard.admin:
     description: Allows full administrative access to MeteorGuard commands
+    default: op
+  meteorguard.suspicious:
+    description: Allows access to /suspicious and /meteorguard suspicious
     default: op
   meteorguard.seecommands:
     description: See every command in tab-complete and use plugin-list commands
