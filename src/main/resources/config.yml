@@ -1,3 +1,7 @@
+---
+
+### 2. `src/main/resources/config.yml` (full file)
+```yaml
 # =====================================================================
 #  MeteorGuard config. Every setting here is read by the plugin.
 #  /meteorguard reload applies changes without a restart.
@@ -69,7 +73,7 @@ block-hiding:
 plugin-hider:
   enabled: true
   alert-on-attempt: true    # staff alert PLUGIN-SCAN when someone tries a blocked command
-  hide-own-commands: true   # /meteor and /meteorguard look like unknown commands to players with no MeteorGuard permission
+  hide-own-commands: true   # /meteor, /meteorguard, and /suspicious look like unknown commands to players without the required rank/permission
   suggestions:
     enabled: true           # hide the commands below from the client's command list + tab-complete
     hide-namespaced: true   # hides essentials:ban, minecraft:give ... (new commands you make are NOT hidden)
@@ -98,6 +102,7 @@ plugin-hider:
       - we
       - meteorguard
       - meteor
+      - suspicious
   block-commands:
     enabled: true
     block-namespaced: true  # blocks typed commands like /bukkit:pl or /minecraft:me
@@ -159,6 +164,10 @@ rate-limits:
     window-seconds: 4
     block-repeats: true
     message: "&cSlow down, you're sending messages too fast."
+  commands:
+    max-commands: 8
+    window-seconds: 4
+    max-length: 256
   inventory-clicks:
     max-clicks: 60
     window-seconds: 1
@@ -223,115 +232,4 @@ lag-protection:
     overloaded-tps: 15.0    # below this: a quarter, and entity hiding pauses
   entity-limit:             # stops mob farms / spawners from lagging the server
     enabled: false
-    max-same-type-per-chunk: 30   # natural spawns, spawners, breeding and eggs stop above this
-  item-clear:               # optional timed clear of old dropped items
-    enabled: false
-    interval-seconds: 300
-    min-age-seconds: 60     # items younger than this are never cleared
-    warn-seconds: 10        # chat warning this long before clearing
-    keep-materials: []      # e.g. [DIAMOND, NETHERITE_INGOT, ELYTRA] are never cleared
-
-# ---------------- Discord alerts ----------------
-discord-webhook:
-  enabled: false
-  url: ""                   # Discord channel settings -> Integrations -> Webhooks -> copy URL
-  username: "MeteorGuard"
-
-# ---------------- Packet limiter (anti-crash) ----------------
-packet-limiter:
-  enabled: true
-  max-per-second: 500       # extra packets above this are dropped and staff are alerted
-  kick-over: 2500           # a player sending this many in one second is kicked
-
-# ---------------- Automatic punishments (off by default) ----------------
-# When one player triggers the same alert check often enough inside the window, the commands run as console.
-# Check names come from the alert text, e.g. CLIENT-BRAND, PLUGIN-SCAN, PACKET-FLOOD.
-punishments:
-  enabled: false
-  window-seconds: 300
-  rules:
-    CLIENT-BRAND:
-      threshold: 1
-      commands:
-        - "kick %player% Cheat client detected"
-    PLUGIN-SCAN:
-      threshold: 5
-      commands:
-        - "kick %player% Please stop scanning the server"
-
-# ---------------- Combat / macro checks ----------------
-combat:
-  autoclicker:
-    enabled: true
-    max-cps: 18
-    macro-detection:
-      enabled: true
-      min-clicks: 10        # needs this many clicks in the last second to judge
-      max-std-dev-ms: 0.5   # click timing more consistent than this = macro
-    violations-before-action: 5
-    violation-memory-seconds: 60   # flags older than this are forgotten
-    action: kick            # alert | kick
-    kick-message: "&cUnfair advantage detected: {reason}"
-  build-macro:
-    enabled: true
-    min-place-interval-ms: 45      # blocks placed faster than this are cancelled
-    violations-before-action: 10
-    violation-memory-seconds: 30
-    action: kick            # alert | kick (placement is always cancelled)
-    kick-message: "&cAutoplace / Build Macro detected!"
-
-# ---------------- Illegal item checks ----------------
-item-checks:
-  enabled: true
-  action: remove            # alert | remove | kick   (remove and kick also alert)
-  scan-on-join: true
-  periodic-scan-seconds: 60 # 0 = off
-  max-serialized-bytes: 20000
-  max-name-length: 120
-  max-lore-lines: 20
-  max-lore-line-length: 120
-  allow-unsafe-enchants: false   # set true if you use a custom-enchant plugin
-  banned-materials:
-    - BEDROCK
-    - BARRIER
-    - COMMAND_BLOCK
-    - CHAIN_COMMAND_BLOCK
-    - REPEATING_COMMAND_BLOCK
-    - COMMAND_BLOCK_MINECART
-    - STRUCTURE_BLOCK
-    - STRUCTURE_VOID
-    - JIGSAW
-    - DEBUG_STICK
-    - KNOWLEDGE_BOOK
-    - LIGHT
-
-# ---------------- Ore ratio alerts (alert only) ----------------
-ore-watch:
-  enabled: true
-  tracked-ores:
-    - DIAMOND_ORE
-    - DEEPSLATE_DIAMOND_ORE
-    - ANCIENT_DEBRIS
-  min-sample: 150           # stone-type blocks mined before the ratio is judged
-  max-ratio: 0.06           # tracked ores / (stone + tracked ores)
-  burst-count: 10           # or this many tracked ores...
-  burst-minutes: 10         # ...within this many minutes
-  alert-cooldown-minutes: 5
-
-# ---------------- GrimAC link ----------------
-grim-hook:
-  enabled: true
-  broadcast: false          # Grim already alerts its own staff; true = also show Grim flags in the Shield format
-
-messages:
-  plugin-enabled: "&ameteor-guard has been enabled!"
-  no-permission: "&cYou do not have permission to use this command!"
-  config-reloaded: "&aConfiguration reloaded successfully!"
-  bypass-enabled: "&aAntiFreecam & AntiESP bypass has been &2ENABLED&a."
-  bypass-disabled: "&cAntiFreecam & AntiESP bypass has been &4DISABLED&c."
-  control-title: "&8MeteorGuard Control Room"
-  control-opened: "&aControl room opened."
-  protection-enabled: "&aMeteorGuard protections are now enabled."
-  protection-disabled: "&cMeteorGuard protections are now disabled."
-  attack-enabled: "&cJoin attack mode enabled."
-  attack-disabled: "&aJoin attack mode disabled."
+    max-same-type-per-chunk: 30
