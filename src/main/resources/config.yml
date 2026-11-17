@@ -1,7 +1,3 @@
----
-
-### 2. `src/main/resources/config.yml` (full file)
-```yaml
 # =====================================================================
 #  MeteorGuard config. Every setting here is read by the plugin.
 #  /meteorguard reload applies changes without a restart.
