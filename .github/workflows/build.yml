@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,17 +20,11 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Validate Gradle Wrapper
-        uses: gradle/wrapper-validation-action@v2
-
-      - name: Setup Gradle Cache & Environment
+      - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
-        with:
-          # Only write to cache on main branch to keep cache clean
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Build with Gradle Wrapper
-        run: ./gradlew build --scan
+      - name: Build with Gradle
+        run: gradle build
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
