@@ -14,7 +14,6 @@ commands:
   suspicious:
     description: Open the suspicious players ore log GUI
     usage: /<command>
-    permission: meteorguard.suspicious
 
 permissions:
   meteorguard.admin:
