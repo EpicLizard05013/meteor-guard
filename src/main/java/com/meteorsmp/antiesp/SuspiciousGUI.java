@@ -16,6 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +56,8 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
 
     private final AntiESPPlugin plugin;
     private final SuspiciousManager manager;
+    private final Map<UUID, Integer> sortModes = new HashMap<>();
+    private static final String[] SORT_NAMES = {"Most recent", "Most flags", "Most rare ores", "Highest severity"};
 
     public SuspiciousGUI(AntiESPPlugin plugin, SuspiciousManager manager) {
         this.plugin = plugin;
@@ -67,7 +71,8 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
     }
 
     public void open(Player viewer, int requestedPage) {
-        List<SuspiciousManager.SuspiciousEntry> list = manager.getEntriesSorted();
+        int sort = sortModes.getOrDefault(viewer.getUniqueId(), 0);
+        List<SuspiciousManager.SuspiciousEntry> list = manager.getEntriesSorted(sort);
         int totalPages = Math.max(1, (int) Math.ceil(list.size() / (double) PAGE_SIZE));
         int page = Math.max(0, Math.min(requestedPage, totalPages - 1));
 
@@ -94,6 +99,9 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
             holder.inventory.setItem(45, button(Material.ARROW, "&ePrevious Page",
                     List.of("&7Go to page " + page)));
         }
+
+        holder.inventory.setItem(47, button(Material.HOPPER, "&dSort: &f" + SORT_NAMES[sort],
+                List.of("&7Click to change the order.")));
 
         holder.inventory.setItem(49, button(Material.BOOK, "&6Suspicious Log",
                 List.of("&7Flagged players: &f" + list.size(),
@@ -126,6 +134,11 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
         List<Component> lore = new ArrayList<>();
         lore.add(noItalic("&7Flags: &c" + entry.flags + "x"));
         lore.add(noItalic(String.format(Locale.US, "&7Rare Ores: &b%d &8(&7Ratio: &e%.1f%%&8)", entry.totalOres, ratio)));
+        lore.add(noItalic("&7Found inside solid rock: &b" + entry.hiddenOres));
+        int score = SuspiciousManager.score(entry);
+        String level = SuspiciousManager.level(score);
+        String levelColor = level.equals("HIGH") ? "&c" : level.equals("MEDIUM") ? "&6" : "&a";
+        lore.add(noItalic("&7Severity: " + levelColor + level + " &8(" + score + ")"));
 
         if (!entry.oreBreakdown.isEmpty()) {
             lore.add(noItalic("&7Breakdown:"));
@@ -204,6 +217,11 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
             open(player, holder.page - 1);
             return;
         }
+        if (slot == 47) {
+            sortModes.put(player.getUniqueId(), (sortModes.getOrDefault(player.getUniqueId(), 0) + 1) % SORT_NAMES.length);
+            open(player, 0);
+            return;
+        }
         if (slot == 51) {
             open(player, holder.page);
             return;
@@ -259,6 +277,11 @@ public final class SuspiciousGUI implements Listener, CommandExecutor, TabComple
                 }
             }
         }
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (event.getInventory().getHolder() instanceof SuspiciousHolder) event.setCancelled(true);
     }
 
     public void sendConsoleList(CommandSender sender) {
