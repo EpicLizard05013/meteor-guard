@@ -224,11 +224,22 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
                 if (chunks[i] == null) continue;
                 int secMin = st.minY + i * 16;
                 int secMax = secMin + 15;
-                int filler;
-                if (mode == Mode.SURFACE && secMax < maskBelowY) filler = deepslateId;
-                else if (mode == Mode.UNDERGROUND && secMin > maskAboveY) filler = stoneId;
-                else continue;
-                fill(chunks[i], filler);
+                int filler, from, to; // local Y range inside this 16-block section
+                if (mode == Mode.SURFACE) {
+                    // surface player: deep area (below maskBelowY) is replaced by solid deepslate
+                    if (secMin >= maskBelowY) continue;
+                    filler = deepslateId;
+                    from = 0;
+                    to = Math.min(15, maskBelowY - 1 - secMin);
+                } else {
+                    // underground player: the surface (above maskAboveY) is replaced by solid stone.
+                    // The layer in between is never touched.
+                    if (secMax <= maskAboveY) continue;
+                    filler = stoneId;
+                    from = Math.max(0, maskAboveY + 1 - secMin);
+                    to = 15;
+                }
+                fillRange(chunks[i], from, to, filler);
                 changed = true;
             }
             if (changed) {
@@ -246,8 +257,8 @@ public final class DepthMask extends PacketListenerAbstract implements Listener 
         }
     }
 
-    private static void fill(BaseChunk chunk, int id) {
-        for (int y = 0; y < 16; y++) {
+    private static void fillRange(BaseChunk chunk, int fromY, int toY, int id) {
+        for (int y = fromY; y <= toY; y++) {
             for (int z = 0; z < 16; z++) {
                 for (int x = 0; x < 16; x++) {
                     chunk.set(x, y, z, id);
