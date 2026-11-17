@@ -709,7 +709,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 sender.sendMessage(color("&e/" + label + " toggle &7- Enable or disable protections"));
             }
             if (canUseSuspicious(sender)) {
-                sender.sendMessage(color("&e/" + label + " suspicious &7- Open the suspicious ore players GUI"));
+                sender.sendMessage(color("&e/" + label + " suspicious &7- Open the suspicious players GUI | list | clear <player>"));
             }
             if (sender.hasPermission("meteorshield.alerts")) {
                 sender.sendMessage(color("&e/" + label + " alerts &7- Toggle staff alerts"));
@@ -797,14 +797,27 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             case "inspect":
                 return inspectCommand(sender, label, args);
 
-            case "suspicious":
-                if (suspiciousGUI == null) return true;
+            case "suspicious": {
+                if (suspiciousGUI == null || suspiciousManager == null) return true;
+                String act = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "";
+                if (act.equals("list")) {
+                    suspiciousGUI.sendConsoleList(sender);
+                    return true;
+                }
+                if (act.equals("clear") && args.length > 2) {
+                    boolean removed = suspiciousManager.removeByName(args[2]);
+                    sender.sendMessage(color(removed
+                            ? "&aRemoved &f" + args[2] + "&a from the suspicious log."
+                            : "&cNot in the suspicious log: &f" + args[2]));
+                    return true;
+                }
                 if (sender instanceof Player player) {
                     suspiciousGUI.open(player, 0);
                 } else {
                     suspiciousGUI.sendConsoleList(sender);
                 }
                 return true;
+            }
 
             default:
                 sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|antiesp|antifreecam|perf|inspect <player>|suspicious|bypass [player]|alerts|attack [on|off]|scan <player>>");
@@ -833,6 +846,23 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 if (s.startsWith(typed)) out.add(s);
             }
             return out;
+        }
+
+        if (canUseSuspicious(sender) && args[0].equalsIgnoreCase("suspicious")) {
+            if (args.length == 2) {
+                for (String s : new String[]{"list", "clear"}) {
+                    if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
+                }
+                return out;
+            }
+            if (args.length == 3 && args[1].equalsIgnoreCase("clear")) {
+                for (SuspiciousManager.SuspiciousEntry en : suspiciousManager.getEntriesSorted()) {
+                    if (en.name != null && en.name.toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))) {
+                        out.add(en.name);
+                    }
+                }
+                return out;
+            }
         }
 
         if (!admin) return out;
