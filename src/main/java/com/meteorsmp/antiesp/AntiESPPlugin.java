@@ -45,6 +45,8 @@ import java.util.UUID;
  */
 public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
 
+    private SuspiciousManager suspiciousManager;
+    private SuspiciousGUI suspiciousGUI;
     private final Set<UUID> bypass = new HashSet<>();
     private final Map<UUID, Set<UUID>> hidden = new HashMap<>();
     private final ArrayDeque<UUID> queue = new ArrayDeque<>();
