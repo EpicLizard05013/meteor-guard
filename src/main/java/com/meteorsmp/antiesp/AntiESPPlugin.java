@@ -14,18 +14,18 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.scoreboard.Team;
-import org.bukkit.util.BoundingBox;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.scoreboard.Team;
+import org.bukkit.util.BoundingBox;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,13 +40,10 @@ import java.util.UUID;
 
 /**
  * MeteorGuard: AntiFreecam (always on), hides players behind walls, hides far-away containers (BlockHider),
- * bot/join protection, rate limits, illegal item checks, ore alerts and one staff alert system.
- * Needs Paper 1.19.3 or newer.
+ * bot/join protection, rate limits, illegal item checks, ore alerts, suspicious ore log, and staff alerts.
  */
 public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, TabCompleter, Listener {
 
-    private SuspiciousManager suspiciousManager;
-    private SuspiciousGUI suspiciousGUI;
     private final Set<UUID> bypass = new HashSet<>();
     private final Map<UUID, Set<UUID>> hidden = new HashMap<>();
     private final ArrayDeque<UUID> queue = new ArrayDeque<>();
@@ -56,6 +53,8 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
     private JoinProtection joinProtection;
     private RateLimiter rateLimiter;
     private ItemSanity itemSanity;
+    private SuspiciousManager suspiciousManager;
+    private SuspiciousGUI suspiciousGUI;
     private OreWatch oreWatch;
     private GrimHook grimHook;
     private CommandHider commandHider;
@@ -101,7 +100,10 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         joinProtection = new JoinProtection(this, alerts);
         rateLimiter = new RateLimiter(this, alerts);
         itemSanity = new ItemSanity(this, alerts);
-        oreWatch = new OreWatch(this, alerts);
+        suspiciousManager = new SuspiciousManager(this);
+        suspiciousManager.load();
+        suspiciousGUI = new SuspiciousGUI(this, suspiciousManager);
+        oreWatch = new OreWatch(this, alerts, suspiciousManager);
         grimHook = new GrimHook(this, alerts);
         commandHider = new CommandHider(this, alerts);
         tabKeeper = new TabListKeeper(getLogger());
@@ -130,6 +132,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         getServer().getPluginManager().registerEvents(oreWatch, this);
         getServer().getPluginManager().registerEvents(commandHider, this);
         getServer().getPluginManager().registerEvents(brandCheck, this);
+        getServer().getPluginManager().registerEvents(suspiciousGUI, this);
 
         blockHider = new BlockHider(this);
         blockHider.start();
@@ -140,6 +143,14 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
             cmd.setTabCompleter(this);
         } else {
             getLogger().severe("Command 'meteor' is missing from plugin.yml!");
+        }
+
+        PluginCommand suspCmd = getCommand("suspicious");
+        if (suspCmd != null) {
+            suspCmd.setExecutor(suspiciousGUI);
+            suspCmd.setTabCompleter(suspiciousGUI);
+        } else {
+            getLogger().severe("Command 'suspicious' is missing from plugin.yml!");
         }
 
         task = Bukkit.getScheduler().runTaskTimer(this, this::tick, 20L, 1L);
@@ -168,6 +179,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         if (joinProtection != null) joinProtection.shutdown();
         if (itemSanity != null) itemSanity.shutdown();
         if (oreWatch != null) oreWatch.shutdown();
+        if (suspiciousManager != null) suspiciousManager.save();
         if (task != null) task.cancel();
         for (Player p : Bukkit.getOnlinePlayers()) revealAll(p);
         hidden.clear();
@@ -225,8 +237,21 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         return color(getConfig().getString("messages." + key, def));
     }
 
+    private String unknownCmdMsg() {
+        return color(getConfig().getString("plugin-hider.block-commands.message",
+                "&cUnknown command. Type \"/help\" for help."));
+    }
+
     private boolean isAdmin(CommandSender sender) {
         return sender.hasPermission("meteorguard.admin") || sender.hasPermission("antifreecam.admin");
+    }
+
+    private boolean canUseSuspicious(CommandSender sender) {
+        return sender.hasPermission("meteorguard.suspicious") || isAdmin(sender);
+    }
+
+    private boolean hasAnyMeteorPerm(CommandSender sender) {
+        return canUseSuspicious(sender) || sender.hasPermission("meteorshield.alerts");
     }
 
     private ItemStack controlItem(Material material, String name, List<String> lore) {
@@ -257,15 +282,18 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         holder.inventory.setItem(16, controlItem(Material.EMERALD,
                 "&bReload configuration",
                 List.of("&7Apply config.yml without restarting.")));
-        holder.inventory.setItem(22, controlItem(Material.BOOK, "&eLive status",
-                List.of("&7Online: &f" + Bukkit.getOnlinePlayers().size(),
-                        "&7Worlds: &f" + Bukkit.getWorlds().size(),
-                        "&7Alerts: &f" + (alerts != null ? "ready" : "unavailable"))));
         holder.inventory.setItem(20, controlItem(depthMask != null ? Material.ENDER_EYE : Material.BARRIER,
                 depthMask != null ? "&aAntiFreecam: ALWAYS ON" : "&cAntiFreecam: NOT RUNNING",
                 List.of("&7Cave / surface masking cannot be switched off.",
                         "&fEntities hidden: &b" + (entityShield != null ? entityShield.hiddenCount() : 0),
                         "&7Details: &f/meteor antifreecam")));
+        holder.inventory.setItem(22, controlItem(Material.BOOK, "&eLive status",
+                List.of("&7Online: &f" + Bukkit.getOnlinePlayers().size(),
+                        "&7Worlds: &f" + Bukkit.getWorlds().size(),
+                        "&7Alerts: &f" + (alerts != null ? "ready" : "unavailable"))));
+        holder.inventory.setItem(24, controlItem(Material.DIAMOND_ORE,
+                "&cSuspicious Players: &f" + (suspiciousManager != null ? suspiciousManager.count() : 0),
+                List.of("&7Click to open the suspicious ore log.")));
         player.openInventory(holder.inventory);
         player.sendMessage(msg("control-opened", "&aControl room opened."));
     }
@@ -314,17 +342,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
         return true;
     }
 
-    /** /meteor inspect <player> - quick look at what a client is doing. */
-    private boolean inspectCommand(CommandSender sender, String label, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " inspect <player>");
-            return true;
-        }
-        Player t = Bukkit.getPlayer(args[1]);
-        if (t == null) {
-            sender.sendMessage(ChatColor.RED + "Player not found!");
-            return true;
-        }
+    public void sendInspect(CommandSender sender, Player t) {
         String brand = t.getClientBrandName();
         List<String> modded = new ArrayList<>();
         for (String ch : t.getListeningPluginChannels()) {
@@ -344,6 +362,20 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 + (modded.isEmpty() ? "none" : String.join(", ", modded.subList(0, Math.min(5, modded.size()))))));
         sender.sendMessage(color("&7AntiFreecam layer: &f" + (depthMask != null ? depthMask.describe(t) : "not running")
                 + " &7| bypass: &f" + hasBypass(t)));
+    }
+
+    /** /meteor inspect <player> - quick look at what a client is doing. */
+    private boolean inspectCommand(CommandSender sender, String label, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " inspect <player>");
+            return true;
+        }
+        Player t = Bukkit.getPlayer(args[1]);
+        if (t == null) {
+            sender.sendMessage(ChatColor.RED + "Player not found!");
+            return true;
+        }
+        sendInspect(sender, t);
         return true;
     }
 
@@ -640,6 +672,12 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 loadSettings();
                 player.sendMessage(msg("config-reloaded", "&aConfiguration reloaded successfully!"));
             }
+            case 24 -> {
+                if (suspiciousGUI != null && canUseSuspicious(player)) {
+                    Bukkit.getScheduler().runTask(this, () -> suspiciousGUI.open(player, 0));
+                    return;
+                }
+            }
             default -> {
             }
         }
@@ -648,23 +686,46 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!hasAnyMeteorPerm(sender)) {
+            if (getConfig().getBoolean("plugin-hider.hide-own-commands", true)) {
+                sender.sendMessage(unknownCmdMsg());
+            } else {
+                sender.sendMessage(msg("no-permission", "&cYou do not have permission!"));
+            }
+            return true;
+        }
+
         String sub = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
         if (sub.isEmpty() || sub.equals("help")) {
             sender.sendMessage(color("&6=== MeteorGuard Commands ==="));
-            sender.sendMessage(color("&e/" + label + " control &7- Open the live control room"));
-            sender.sendMessage(color("&e/" + label + " status &7- Show live protection status"));
-            sender.sendMessage(color("&e/" + label + " antiesp &7- AntiESP status | toggle | bypass [player]"));
-            sender.sendMessage(color("&e/" + label + " perf &7- TPS, lag protection, clear dropped items"));
-            sender.sendMessage(color("&e/" + label + " inspect <player> &7- client brand, ping, modded channels, layer"));
-            sender.sendMessage(color("&e/" + label + " antifreecam &7- AntiFreecam status (always on) | bypass | refresh"));
-            sender.sendMessage(color("&e/" + label + " reload &7- Reload config.yml"));
-            sender.sendMessage(color("&e/" + label + " toggle &7- Enable or disable protections"));
+            if (isAdmin(sender)) {
+                sender.sendMessage(color("&e/" + label + " control &7- Open the live control room"));
+                sender.sendMessage(color("&e/" + label + " status &7- Show live protection status"));
+                sender.sendMessage(color("&e/" + label + " antiesp &7- AntiESP status | toggle | bypass [player]"));
+                sender.sendMessage(color("&e/" + label + " perf &7- TPS, lag protection, clear dropped items"));
+                sender.sendMessage(color("&e/" + label + " inspect <player> &7- client brand, ping, modded channels, layer"));
+                sender.sendMessage(color("&e/" + label + " antifreecam &7- AntiFreecam status (always on) | bypass | refresh"));
+                sender.sendMessage(color("&e/" + label + " reload &7- Reload config.yml"));
+                sender.sendMessage(color("&e/" + label + " toggle &7- Enable or disable protections"));
+            }
+            if (canUseSuspicious(sender)) {
+                sender.sendMessage(color("&e/" + label + " suspicious &7- Open the suspicious ore players GUI"));
+            }
+            if (sender.hasPermission("meteorshield.alerts")) {
+                sender.sendMessage(color("&e/" + label + " alerts &7- Toggle staff alerts"));
+            }
             return true;
         }
+
         boolean admin = isAdmin(sender);
         boolean alertsOnly = sub.equals("alerts") && sender.hasPermission("meteorshield.alerts");
-        if (!admin && !alertsOnly) {
-            sender.sendMessage(msg("no-permission", "&cYou do not have permission!"));
+        boolean suspiciousOnly = sub.equals("suspicious") && canUseSuspicious(sender);
+        if (!admin && !alertsOnly && !suspiciousOnly) {
+            if (sub.equals("suspicious") && getConfig().getBoolean("plugin-hider.hide-own-commands", true)) {
+                sender.sendMessage(unknownCmdMsg());
+            } else {
+                sender.sendMessage(msg("no-permission", "&cYou do not have permission!"));
+            }
             return true;
         }
 
@@ -676,6 +737,7 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 }
                 openControlRoom(player);
                 return true;
+
             case "reload":
                 loadSettings();
                 sender.sendMessage(msg("config-reloaded", "&aConfiguration reloaded!"));
@@ -730,25 +792,52 @@ public final class AntiESPPlugin extends JavaPlugin implements CommandExecutor, 
                 return antiEspCommand(sender, label, args);
 
             case "perf":
-                return lagGuard == null ? true : lagGuard.command(sender, label, args);
+                return lagGuard == null || lagGuard.command(sender, label, args);
 
             case "inspect":
                 return inspectCommand(sender, label, args);
 
+            case "suspicious":
+                if (suspiciousGUI == null) return true;
+                if (sender instanceof Player player) {
+                    suspiciousGUI.open(player, 0);
+                } else {
+                    suspiciousGUI.sendConsoleList(sender);
+                }
+                return true;
+
             default:
-                sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|antiesp|antifreecam|perf|inspect <player>|bypass [player]|alerts|attack [on|off]|scan <player>>");
+                sender.sendMessage(ChatColor.YELLOW + "Usage: /" + label + " <help|control|reload|toggle|status|antiesp|antifreecam|perf|inspect <player>|suspicious|bypass [player]|alerts|attack [on|off]|scan <player>>");
                 return true;
         }
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!hasAnyMeteorPerm(sender)) return List.of();
         List<String> out = new ArrayList<>();
+        boolean admin = isAdmin(sender);
+
         if (args.length == 1) {
-            for (String s : new String[]{"help", "control", "reload", "toggle", "status", "antiesp", "antifreecam", "perf", "inspect", "bypass", "alerts", "attack", "scan"}) {
-                if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
+            String typed = args[0].toLowerCase(Locale.ROOT);
+            List<String> candidates = new ArrayList<>();
+            candidates.add("help");
+            if (admin) {
+                candidates.addAll(List.of("control", "reload", "toggle", "status", "antiesp", "antifreecam",
+                        "perf", "inspect", "bypass", "attack", "scan"));
             }
-        } else if (args.length == 2 && args[0].equalsIgnoreCase("attack")) {
+            if (canUseSuspicious(sender)) candidates.add("suspicious");
+            if (sender.hasPermission("meteorshield.alerts")) candidates.add("alerts");
+
+            for (String s : candidates) {
+                if (s.startsWith(typed)) out.add(s);
+            }
+            return out;
+        }
+
+        if (!admin) return out;
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("attack")) {
             for (String s : new String[]{"on", "off", "status"}) {
                 if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
             }
