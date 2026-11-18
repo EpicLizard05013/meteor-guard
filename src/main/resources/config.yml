@@ -237,7 +237,12 @@ antifreecam:
   surface-mode:
     mask-below-y: 5         # masks the entire deepslate layer (Y=-1 to -64) from the surface
   underground-mode:
-    mask-above-y: 56        # masks surface bases & terrain above Y=56 while underground
+    follow-player: true     # true = the hidden area starts just above YOU and moves with you (at Y=0 you see up to Y=6)
+    margin: 6               # blocks above you that stay visible (keep >= 5 or jumping can glitch)
+    step: 4                 # the layer moves in steps of this many blocks (bigger = fewer chunk re-sends)
+    layer-cooldown-ms: 1500
+    filler: deepslate       # deepslate | stone  (what the hidden area is filled with)
+    mask-above-y: 56        # only used when follow-player is false
   resend-cooldown-seconds: 2
   hide-entities: true       # hides mobs / items / armor stands inside the masked area
 
